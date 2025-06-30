@@ -139,6 +139,41 @@ describe('Firecrawl Tool Tests', () => {
     });
   });
 
+  // Test scrape with maxAge parameter
+  test('should handle scrape request with maxAge parameter', async () => {
+    const url = 'https://example.com';
+    const options = { formats: ['markdown'], maxAge: 3600000 };
+
+    const mockResponse: ScrapeResponse = {
+      success: true,
+      markdown: '# Test Content',
+      html: undefined,
+      rawHtml: undefined,
+      url: 'https://example.com',
+      actions: undefined as never,
+    };
+
+    mockClient.scrapeUrl.mockResolvedValueOnce(mockResponse);
+
+    const response = await requestHandler({
+      method: 'call_tool',
+      params: {
+        name: 'firecrawl_scrape',
+        arguments: { url, ...options },
+      },
+    });
+
+    expect(response).toEqual({
+      content: [{ type: 'text', text: '# Test Content' }],
+      isError: false,
+    });
+    expect(mockClient.scrapeUrl).toHaveBeenCalledWith(url, {
+      formats: ['markdown'],
+      maxAge: 3600000,
+      url,
+    });
+  });
+
   // Test batch scrape functionality
   test('should handle batch scrape request', async () => {
     const urls = ['https://example.com'];

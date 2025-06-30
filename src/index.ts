@@ -37,10 +37,12 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
   "name": "firecrawl_scrape",
   "arguments": {
     "url": "https://example.com",
-    "formats": ["markdown"]
+    "formats": ["markdown"],
+    "maxAge": 3600000
   }
 }
 \`\`\`
+**Performance:** Add maxAge parameter for 500% faster scrapes using cached data.
 **Returns:** Markdown, HTML, or other formats as specified.
 `,
   inputSchema: {
@@ -188,6 +190,10 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
           },
         },
         description: 'Location settings for scraping',
+      },
+      maxAge: {
+        type: 'number',
+        description: 'Maximum age in milliseconds for cached content. Use cached data if available and younger than maxAge, otherwise scrape fresh. Enables 500% faster scrapes for recently cached pages. Default: 0 (always scrape fresh)',
       },
     },
     required: ['url'],
