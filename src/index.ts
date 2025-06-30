@@ -90,6 +90,11 @@ Scrape content from a single URL with advanced options.
         description:
           'Maximum time in milliseconds to wait for the page to load',
       },
+      maxAge: {
+        type: 'number',
+        description: 'Maximum age in milliseconds for cached content. Use cached data if younger than maxAge, otherwise scrape fresh. Defaults to 0 (always scrape fresh).',
+        default: 0,
+      },
       actions: {
         type: 'array',
         items: {
@@ -368,6 +373,10 @@ Starts an asynchronous crawl job on a website and extracts content from all page
           },
           waitFor: {
             type: 'number',
+          },
+          maxAge: {
+            type: 'number',
+            description: 'Maximum age in milliseconds for cached content per page',
           },
         },
         description: 'Options for scraping each page',
@@ -675,6 +684,66 @@ Generate a standardized llms.txt (and optionally llms-full.txt) file for a given
   },
 };
 
+const BATCH_SCRAPE_TOOL: Tool = {
+  name: 'firecrawl_batch_scrape',
+  description: `
+Start an asynchronous batch scrape job for multiple URLs.
+
+**Best for:** Scraping multiple specific URLs efficiently with better control than crawling.
+**Not recommended for:** Single URL (use scrape), unknown URLs (use search first), when you need immediate results.
+**Common mistakes:** Using this for a single URL (use scrape instead).
+**Prompt Example:** "Scrape content from these 5 product pages."
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_batch_scrape",
+  "arguments": {
+    "urls": ["https://example.com/page1", "https://example.com/page2"],
+    "formats": ["markdown"]
+  }
+}
+\`\`\`
+**Returns:** Batch operation ID for status checking; use firecrawl_check_batch_status to check progress.
+`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Array of URLs to scrape',
+      },
+      formats: {
+        type: 'array',
+        items: {
+          type: 'string',
+          enum: [
+            'markdown',
+            'html',
+            'rawHtml',
+            'screenshot',
+            'links',
+            'screenshot@fullPage',
+            'extract',
+          ],
+        },
+        default: ['markdown'],
+        description: "Content formats to extract (default: ['markdown'])",
+      },
+      onlyMainContent: {
+        type: 'boolean',
+        description: 'Extract only the main content, filtering out navigation, footers, etc.',
+      },
+      maxAge: {
+        type: 'number',
+        description: 'Maximum age in milliseconds for cached content. Use cached data if younger than maxAge, otherwise scrape fresh. Defaults to 0 (always scrape fresh).',
+        default: 0,
+      },
+    },
+    required: ['urls'],
+  },
+};
+
 /**
  * Parameters for LLMs.txt generation operations.
  */
@@ -739,6 +808,7 @@ interface SearchOptions {
     includeTags?: string[];
     excludeTags?: string[];
     timeout?: number;
+    maxAge?: number;
   };
 }
 
@@ -837,6 +907,16 @@ function isGenerateLLMsTextOptions(
     args !== null &&
     'url' in args &&
     typeof (args as { url: unknown }).url === 'string'
+  );
+}
+
+function isBatchScrapeOptions(args: unknown): args is { urls: string[] } & Record<string, any> {
+  return (
+    typeof args === 'object' &&
+    args !== null &&
+    'urls' in args &&
+    Array.isArray((args as { urls: unknown }).urls) &&
+    (args as { urls: unknown[] }).urls.every((url): url is string => typeof url === 'string')
   );
 }
 
@@ -962,6 +1042,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     EXTRACT_TOOL,
     DEEP_RESEARCH_TOOL,
     GENERATE_LLMSTXT_TOOL,
+    BATCH_SCRAPE_TOOL,
   ],
 }));
 
@@ -1398,6 +1479,56 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 
           return {
             content: [{ type: 'text', text: trimResponseText(resultText) }],
+            isError: false,
+          };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+            isError: true,
+          };
+        }
+      }
+
+      case 'firecrawl_batch_scrape': {
+        if (!isBatchScrapeOptions(args)) {
+          throw new Error('Invalid arguments for firecrawl_batch_scrape');
+        }
+        
+        try {
+          const { urls, ...options } = args;
+          const batchStartTime = Date.now();
+          
+          safeLog(
+            'info',
+            `Starting batch scrape for ${urls.length} URLs with options: ${JSON.stringify(options)}`
+          );
+
+          const response = await withRetry(
+            async () =>
+              client.asyncBatchScrapeUrls(urls, options),
+            'batch scrape operation'
+          );
+
+          if (!response.success) {
+            throw new Error(response.error || 'Batch scrape failed');
+          }
+
+          safeLog(
+            'info',
+            `Batch scrape queued in ${Date.now() - batchStartTime}ms with ID: ${response.id}`
+          );
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: trimResponseText(
+                  `Batch scrape operation queued with ID: ${response.id}. Use firecrawl_check_batch_status to check progress.`
+                ),
+              },
+            ],
             isError: false,
           };
         } catch (error) {
