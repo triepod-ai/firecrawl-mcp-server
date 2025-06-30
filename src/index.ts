@@ -513,7 +513,7 @@ const EXTRACT_TOOL: Tool = {
   description: `
 Extract structured information from web pages using LLM capabilities. Supports both cloud AI and self-hosted LLM extraction.
 
-**Best for:** Extracting specific structured data like prices, names, details.
+**Best for:** Extracting specific structured data like prices, names, details from web pages.
 **Not recommended for:** When you need the full content of a page (use scrape); when you're not looking for specific structured data.
 **Arguments:**
 - urls: Array of URLs to extract information from
