@@ -637,6 +637,161 @@ Conduct deep web research on a query using intelligent crawling, search, and LLM
   },
 };
 
+const BATCH_SCRAPE_TOOL: Tool = {
+  name: 'firecrawl_batch_scrape',
+  description: `
+Scrape multiple URLs efficiently with built-in rate limiting and parallel processing.
+
+**Best for:** Retrieving content from multiple pages when you know which pages to scrape.
+**Not recommended for:** Single page scraping (use scrape); when you need comprehensive coverage of a website (use crawl).
+**Common mistakes:** Using batch_scrape for a single URL (use scrape instead); not setting appropriate maxConcurrency for large batches.
+**Prompt Example:** "Scrape content from these 5 product pages."
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_batch_scrape",
+  "arguments": {
+    "urls": ["https://example1.com", "https://example2.com"],
+    "options": {
+      "formats": ["markdown"],
+      "onlyMainContent": true
+    },
+    "maxConcurrency": 5
+  }
+}
+\`\`\`
+**Returns:** Job ID for status checking; use firecrawl_check_batch_status to check progress.
+`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of URLs to scrape',
+      },
+      options: {
+        type: 'object',
+        properties: {
+          formats: {
+            type: 'array',
+            items: {
+              type: 'string',
+              enum: [
+                'markdown',
+                'html',
+                'rawHtml',
+                'screenshot',
+                'links',
+                'screenshot@fullPage',
+                'extract',
+              ],
+            },
+            default: ['markdown'],
+            description: "Content formats to extract (default: ['markdown'])",
+          },
+          onlyMainContent: {
+            type: 'boolean',
+            description:
+              'Extract only the main content, filtering out navigation, footers, etc.',
+          },
+          includeTags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'HTML tags to specifically include in extraction',
+          },
+          excludeTags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'HTML tags to exclude from extraction',
+          },
+          waitFor: {
+            type: 'number',
+            description: 'Time in milliseconds to wait for dynamic content to load',
+          },
+          timeout: {
+            type: 'number',
+            description:
+              'Maximum time in milliseconds to wait for the page to load',
+          },
+          mobile: {
+            type: 'boolean',
+            description: 'Use mobile viewport',
+          },
+          skipTlsVerification: {
+            type: 'boolean',
+            description: 'Skip TLS certificate verification',
+          },
+          removeBase64Images: {
+            type: 'boolean',
+            description: 'Remove base64 encoded images from output',
+          },
+        },
+        description: 'Options for scraping each URL',
+      },
+      maxConcurrency: {
+        type: 'number',
+        description: 'Maximum number of concurrent scrape operations',
+      },
+      webhook: {
+        oneOf: [
+          {
+            type: 'string',
+            description: 'Webhook URL to notify when batch is complete',
+          },
+          {
+            type: 'object',
+            properties: {
+              url: {
+                type: 'string',
+                description: 'Webhook URL',
+              },
+              headers: {
+                type: 'object',
+                description: 'Custom headers for webhook requests',
+              },
+            },
+            required: ['url'],
+          },
+        ],
+      },
+      ignoreInvalidURLs: {
+        type: 'boolean',
+        description: 'Continue processing even if some URLs are invalid',
+      },
+    },
+    required: ['urls'],
+  },
+};
+
+const CHECK_BATCH_STATUS_TOOL: Tool = {
+  name: 'firecrawl_check_batch_status',
+  description: `
+Check the status of a batch scrape job.
+
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_check_batch_status",
+  "arguments": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+\`\`\`
+**Returns:** Status and progress of the batch scrape job, including results if available.
+`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        description: 'Batch scrape job ID to check',
+      },
+    },
+    required: ['id'],
+  },
+};
+
 const GENERATE_LLMSTXT_TOOL: Tool = {
   name: 'firecrawl_generate_llmstxt',
   description: `
@@ -836,6 +991,21 @@ function isExtractOptions(args: unknown): args is ExtractArgs {
   );
 }
 
+function isBatchScrapeOptions(args: unknown): args is {
+  urls: string[];
+  options?: ScrapeParams;
+  maxConcurrency?: number;
+  webhook?: string | { url: string; headers?: object };
+  ignoreInvalidURLs?: boolean;
+} {
+  if (typeof args !== 'object' || args === null) return false;
+  const { urls } = args as { urls?: unknown };
+  return (
+    Array.isArray(urls) &&
+    urls.every((url): url is string => typeof url === 'string')
+  );
+}
+
 function isGenerateLLMsTextOptions(
   args: unknown
 ): args is { url: string } & Partial<GenerateLLMsTextParams> {
@@ -968,6 +1138,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     SEARCH_TOOL,
     EXTRACT_TOOL,
     DEEP_RESEARCH_TOOL,
+    BATCH_SCRAPE_TOOL,
+    CHECK_BATCH_STATUS_TOOL,
     GENERATE_LLMSTXT_TOOL,
   ],
 }));
@@ -1351,6 +1523,98 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
                 text: trimResponseText(formattedResponse.finalAnalysis),
               },
             ],
+            isError: false,
+          };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+            isError: true,
+          };
+        }
+      }
+
+      case 'firecrawl_batch_scrape': {
+        if (!isBatchScrapeOptions(args)) {
+          throw new Error('Invalid arguments for firecrawl_batch_scrape');
+        }
+        const { urls, options, maxConcurrency, webhook, ignoreInvalidURLs } = args;
+        try {
+          const batchStartTime = Date.now();
+          safeLog(
+            'info',
+            `Starting batch scrape for ${urls.length} URLs with maxConcurrency: ${maxConcurrency || 'default'}`
+          );
+
+          const response = await withRetry(
+            async () =>
+              client.asyncBatchScrapeUrls(
+                urls,
+                {
+                  ...options,
+                  // @ts-expect-error maxConcurrency is accepted by the API but not in ScrapeParams type
+                  maxConcurrency,
+                  // @ts-expect-error Extended API options including origin
+                  origin: 'mcp-server',
+                },
+                undefined, // idempotencyKey
+                webhook,
+                ignoreInvalidURLs
+              ),
+            'batch scrape operation'
+          );
+
+          if (!response.success) {
+            throw new Error(response.error || 'Batch scrape failed');
+          }
+
+          // Log performance metrics
+          safeLog(
+            'info',
+            `Batch scrape initiated in ${Date.now() - batchStartTime}ms`
+          );
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: trimResponseText(
+                  `Started batch scrape for ${urls.length} URLs with job ID: ${response.id}. Use firecrawl_check_batch_status to check progress.`
+                ),
+              },
+            ],
+            isError: false,
+          };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+            isError: true,
+          };
+        }
+      }
+
+      case 'firecrawl_check_batch_status': {
+        if (!isStatusCheckOptions(args)) {
+          throw new Error('Invalid arguments for firecrawl_check_batch_status');
+        }
+        try {
+          const response = await client.checkBatchScrapeStatus(args.id);
+          if (!response.success) {
+            throw new Error(response.error || 'Failed to check batch status');
+          }
+          const status = `Batch Scrape Status:
+Status: ${response.status}
+Progress: ${response.completed}/${response.total}
+Credits Used: ${response.creditsUsed}
+Expires At: ${response.expiresAt}
+${
+  response.data.length > 0 ? '\nResults:\n' + formatResults(response.data) : ''
+}`;
+          return {
+            content: [{ type: 'text', text: trimResponseText(status) }],
             isError: false,
           };
         } catch (error) {
