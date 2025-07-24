@@ -1555,7 +1555,6 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
                   ...options,
                   // @ts-expect-error maxConcurrency is accepted by the API but not in ScrapeParams type
                   maxConcurrency,
-                  // @ts-expect-error Extended API options including origin
                   origin: 'mcp-server',
                 },
                 undefined, // idempotencyKey
