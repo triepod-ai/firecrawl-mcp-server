@@ -58,11 +58,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mendableai/firecrawl-mcp-server.git"
+    "url": "git+https://github.com/firecrawl/firecrawl-mcp-server.git"
   },
   "author": "vrknetha",
   "bugs": {
-    "url": "https://github.com/mendableai/firecrawl-mcp-server/issues"
+    "url": "https://github.com/firecrawl/firecrawl-mcp-server/issues"
   },
-  "homepage": "https://github.com/mendableai/firecrawl-mcp-server#readme"
+  "homepage": "https://github.com/firecrawl/firecrawl-mcp-server#readme"
 }
