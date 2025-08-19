@@ -9,14 +9,16 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import FirecrawlApp, {
-  type ScrapeParams,
-  type MapParams,
-  type CrawlParams,
-  type FirecrawlDocument,
+  type ScrapeOptions,
+  type MapOptions,
+  type Document,
 } from '@mendable/firecrawl-js';
+
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 
 dotenv.config();
 
@@ -64,6 +66,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
             'links',
             'screenshot@fullPage',
             'extract',
+            'summary',
           ],
         },
         default: ['markdown'],
@@ -71,6 +74,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
       },
       onlyMainContent: {
         type: 'boolean',
+        default: true,
         description:
           'Extract only the main content, filtering out navigation, footers, etc.',
       },
@@ -87,11 +91,6 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
       waitFor: {
         type: 'number',
         description: 'Time in milliseconds to wait for dynamic content to load',
-      },
-      timeout: {
-        type: 'number',
-        description:
-          'Maximum time in milliseconds to wait for the page to load',
       },
       actions: {
         type: 'array',
@@ -191,9 +190,17 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
         },
         description: 'Location settings for scraping',
       },
+      storeInCache: {
+        type: 'boolean',
+        default: true,
+        description:
+          'If true, the page will be stored in the Firecrawl index and cache. Setting this to false is useful if your scraping activity may have data protection concerns.',
+      },
       maxAge: {
         type: 'number',
-        description: 'Maximum age in milliseconds for cached content. Use cached data if available and younger than maxAge, otherwise scrape fresh. Enables 500% faster scrapes for recently cached pages. Default: 0 (always scrape fresh)',
+        default: 172800000,
+        description:
+          'Maximum age in milliseconds for cached content. Use cached data if available and younger than maxAge, otherwise scrape fresh. Enables 500% faster scrapes for recently cached pages. Default: 172800000',
       },
     },
     required: ['url'],
@@ -231,21 +238,26 @@ Map a website to discover all indexed URLs on the site.
         type: 'string',
         description: 'Optional search term to filter URLs',
       },
-      ignoreSitemap: {
-        type: 'boolean',
-        description: 'Skip sitemap.xml discovery and only use HTML links',
-      },
-      sitemapOnly: {
-        type: 'boolean',
-        description: 'Only use sitemap.xml for discovery, ignore HTML links',
+      sitemap: {
+        type: 'string',
+        enum: ['skip', 'include', 'only'],
+        default: 'include',
+        description:
+          'Sitemap mode when mapping. If set to skip, the sitemap will not be used. If set to only, only URLs that are in the sitemap will be returned. By default (include), the sitemap and other methods will be used together to find URLs.',
       },
       includeSubdomains: {
         type: 'boolean',
         description: 'Include URLs from subdomains in results',
       },
+
       limit: {
         type: 'number',
         description: 'Maximum number of URLs to return',
+      },
+      ignoreQueryParameters: {
+        type: 'boolean',
+        default: true,
+        description: 'Do not return URLs with query parameters',
       },
     },
     required: ['url'],
@@ -255,34 +267,40 @@ Map a website to discover all indexed URLs on the site.
 const CRAWL_TOOL: Tool = {
   name: 'firecrawl_crawl',
   description: `
-Starts an asynchronous crawl job on a website and extracts content from all pages.
-
-**Best for:** Extracting content from multiple related pages, when you need comprehensive coverage.
-**Not recommended for:** Extracting content from a single page (use scrape); when token limits are a concern (use map + batch_scrape); when you need fast results (crawling can be slow).
-**Warning:** Crawl responses can be very large and may exceed token limits. Limit the crawl depth and number of pages, or use map + batch_scrape for better control.
-**Common mistakes:** Setting limit or maxDepth too high (causes token overflow); using crawl for a single page (use scrape instead).
-**Prompt Example:** "Get all blog posts from the first two levels of example.com/blog."
-**Usage Example:**
-\`\`\`json
-{
-  "name": "firecrawl_crawl",
-  "arguments": {
-    "url": "https://example.com/blog/*",
-    "maxDepth": 2,
-    "limit": 100,
-    "allowExternalLinks": false,
-    "deduplicateSimilarURLs": true
-  }
-}
-\`\`\`
-**Returns:** Operation ID for status checking; use firecrawl_check_crawl_status to check progress.
-`,
+ Starts an asynchronous crawl job on a website and extracts content from all pages.
+ 
+ **Best for:** Extracting content from multiple related pages, when you need comprehensive coverage.
+ **Not recommended for:** Extracting content from a single page (use scrape); when token limits are a concern (use map + batch_scrape); when you need fast results (crawling can be slow).
+ **Warning:** Crawl responses can be very large and may exceed token limits. Limit the crawl depth and number of pages, or use map + batch_scrape for better control.
+ **Common mistakes:** Setting limit or maxDiscoveryDepth too high (causes token overflow); using crawl for a single page (use scrape instead).
+ **Prompt Example:** "Get all blog posts from the first two levels of example.com/blog."
+ **Usage Example:**
+ \`\`\`json
+ {
+   "name": "firecrawl_crawl",
+   "arguments": {
+     "url": "https://example.com/blog/*",
+     "maxDiscoveryDepth": 2,
+     "limit": 100,
+     "allowExternalLinks": false,
+     "deduplicateSimilarURLs": true,
+     "sitemap": "include"
+   }
+ }
+ \`\`\`
+ **Returns:** Operation ID for status checking; use firecrawl_check_crawl_status to check progress.
+ `,
   inputSchema: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
         description: 'Starting URL for the crawl',
+      },
+      prompt: {
+        type: 'string',
+        description:
+          'Natural language prompt to generate crawler options. Explicitly set parameters will override generated ones.',
       },
       excludePaths: {
         type: 'array',
@@ -294,25 +312,47 @@ Starts an asynchronous crawl job on a website and extracts content from all page
         items: { type: 'string' },
         description: 'Only crawl these URL paths',
       },
-      maxDepth: {
+      maxDiscoveryDepth: {
         type: 'number',
-        description: 'Maximum link depth to crawl',
+        description:
+          'Maximum discovery depth to crawl. The root site and sitemapped pages have depth 0.',
       },
-      ignoreSitemap: {
-        type: 'boolean',
-        description: 'Skip sitemap.xml discovery',
+      sitemap: {
+        type: 'string',
+        enum: ['skip', 'include', 'only'],
+        default: 'include',
+        description:
+          "Sitemap mode when crawling. 'skip' ignores the sitemap entirely, 'include' uses sitemap plus other discovery methods (default), 'only' restricts crawling to sitemap URLs.",
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of pages to crawl',
-      },
-      allowBackwardLinks: {
-        type: 'boolean',
-        description: 'Allow crawling links that point to parent directories',
+        default: 10000,
+        description: 'Maximum number of pages to crawl (default: 10000)',
       },
       allowExternalLinks: {
         type: 'boolean',
         description: 'Allow crawling links to external domains',
+      },
+      allowSubdomains: {
+        type: 'boolean',
+        default: false,
+        description: 'Allow crawling links to subdomains of the main domain',
+      },
+      crawlEntireDomain: {
+        type: 'boolean',
+        default: false,
+        description:
+          'When true, follow internal links to sibling or parent URLs, not just child paths',
+      },
+      delay: {
+        type: 'number',
+        description:
+          'Delay in seconds between scrapes to respect site rate limits',
+      },
+      maxConcurrency: {
+        type: 'number',
+        description:
+          'Maximum number of concurrent scrapes; if unset, team limit is used',
       },
       webhook: {
         oneOf: [
@@ -342,7 +382,9 @@ Starts an asynchronous crawl job on a website and extracts content from all page
       },
       ignoreQueryParameters: {
         type: 'boolean',
-        description: 'Ignore query parameters when comparing URLs',
+        default: false,
+        description:
+          'Do not re-scrape the same path with different (or none) query parameters',
       },
       scrapeOptions: {
         type: 'object',
@@ -450,14 +492,6 @@ Search the web and optionally extract content from search results. This is the m
         type: 'number',
         description: 'Maximum number of results to return (default: 5)',
       },
-      lang: {
-        type: 'string',
-        description: 'Language code for search results (default: en)',
-      },
-      country: {
-        type: 'string',
-        description: 'Country code for search results (default: us)',
-      },
       tbs: {
         type: 'string',
         description: 'Time-based search filter',
@@ -467,19 +501,50 @@ Search the web and optionally extract content from search results. This is the m
         description: 'Search filter',
       },
       location: {
-        type: 'object',
-        properties: {
-          country: {
-            type: 'string',
-            description: 'Country code for geolocation',
-          },
-          languages: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Language codes for content',
-          },
+        type: 'string',
+        description: 'Location parameter for search results',
+      },
+      sources: {
+        type: 'array',
+        description:
+          'Sources to search. Determines which result arrays are included in the response.',
+        items: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['web'] },
+                tbs: {
+                  type: 'string',
+                  description:
+                    'Time-based search parameter (e.g., qdr:h, qdr:d, qdr:w, qdr:m, qdr:y or custom cdr with cd_min/cd_max)',
+                },
+                location: {
+                  type: 'string',
+                  description: 'Location parameter for search results',
+                },
+              },
+              required: ['type'],
+              additionalProperties: false,
+            },
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['images'] },
+              },
+              required: ['type'],
+              additionalProperties: false,
+            },
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['news'] },
+              },
+              required: ['type'],
+              additionalProperties: false,
+            },
+          ],
         },
-        description: 'Location settings for search',
       },
       scrapeOptions: {
         type: 'object',
@@ -747,6 +812,19 @@ interface SearchOptions {
     excludeTags?: string[];
     timeout?: number;
   };
+  sources?: Array<
+    | {
+        type: 'web';
+        tbs?: string;
+        location?: string;
+      }
+    | {
+        type: 'images';
+      }
+    | {
+        type: 'news';
+      }
+  >;
 }
 
 // Add after other interfaces
@@ -782,7 +860,7 @@ interface ExtractResponse<T = any> {
 // Type guards
 function isScrapeOptions(
   args: unknown
-): args is ScrapeParams & { url: string } {
+): args is ScrapeOptions & { url: string } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -791,7 +869,7 @@ function isScrapeOptions(
   );
 }
 
-function isMapOptions(args: unknown): args is MapParams & { url: string } {
+function isMapOptions(args: unknown): args is MapOptions & { url: string } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -800,7 +878,8 @@ function isMapOptions(args: unknown): args is MapParams & { url: string } {
   );
 }
 
-function isCrawlOptions(args: unknown): args is CrawlParams & { url: string } {
+//@ts-expect-error todo: fix
+function isCrawlOptions(args: unknown): args is CrawlOptions & { url: string } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -847,6 +926,26 @@ function isGenerateLLMsTextOptions(
   );
 }
 
+function removeEmptyTopLevel<T extends Record<string, any>>(
+  obj: T
+): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v == null) continue;
+    if (typeof v === 'string' && v.trim() === '') continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    if (
+      typeof v === 'object' &&
+      !Array.isArray(v) &&
+      Object.keys(v).length === 0
+    )
+      continue;
+    // @ts-expect-error dynamic assignment
+    out[k] = v;
+  }
+  return out;
+}
+
 // Server implementation
 const server = new Server(
   {
@@ -856,7 +955,6 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
-      logging: {},
     },
   }
 );
@@ -914,15 +1012,11 @@ function safeLog(
     | 'emergency',
   data: any
 ): void {
-  if (isStdioTransport) {
-    // For stdio transport, log to stderr to avoid protocol interference
-    console.error(
-      `[${level}] ${typeof data === 'object' ? JSON.stringify(data) : data}`
-    );
-  } else {
-    // For other transport types, use the normal logging mechanism
-    server.sendLoggingMessage({ level, data });
-  }
+  // Always log to stderr to avoid relying on MCP logging capability
+  const message = `[${level}] ${
+    typeof data === 'object' ? JSON.stringify(data) : String(data)
+  }`;
+  console.error(message);
 }
 
 // Add retry logic with exponential backoff
@@ -976,11 +1070,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const startTime = Date.now();
   try {
     const { name, arguments: args } = request.params;
-
-    const apiKey = process.env.CLOUD_SERVICE
-      ? (request.params._meta?.apiKey as string)
-      : FIRECRAWL_API_KEY;
-    if (process.env.CLOUD_SERVICE && !apiKey) {
+    const apiKey =
+      process.env.CLOUD_SERVICE === 'true'
+        ? (request.params._meta?.apiKey as string)
+        : FIRECRAWL_API_KEY;
+    if (process.env.CLOUD_SERVICE === 'true' && !apiKey) {
       throw new Error('No API key provided');
     }
 
@@ -1004,28 +1098,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error('Invalid arguments for firecrawl_scrape');
         }
         const { url, ...options } = args;
+        const cleaned = removeEmptyTopLevel(options);
         try {
           const scrapeStartTime = Date.now();
           safeLog(
             'info',
             `Starting scrape for URL: ${url} with options: ${JSON.stringify(options)}`
           );
-
-          const response = await client.scrapeUrl(url, {
-            ...options,
-            // @ts-expect-error Extended API options including origin
+          const response = await client.scrape(url, {
+            ...cleaned,
             origin: 'mcp-server',
           });
-
           // Log performance metrics
           safeLog(
             'info',
             `Scrape completed in ${Date.now() - scrapeStartTime}ms`
           );
 
-          if ('success' in response && !response.success) {
-            throw new Error(response.error || 'Scraping failed');
-          }
+          // if ('success' in response && !response.success) {
+          //   throw new Error(response.error || 'Scraping failed');
+          // }
 
           // Format content based on requested formats
           const contentParts = [];
@@ -1045,8 +1137,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (options.formats?.includes('screenshot') && response.screenshot) {
             contentParts.push(response.screenshot);
           }
-          if (options.formats?.includes('extract') && response.extract) {
-            contentParts.push(JSON.stringify(response.extract, null, 2));
+          if (options.formats?.includes('json') && response.json) {
+            contentParts.push(JSON.stringify(response.json, null, 2));
           }
 
           // If options.formats is empty, default to markdown
@@ -1085,14 +1177,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error('Invalid arguments for firecrawl_map');
         }
         const { url, ...options } = args;
-        const response = await client.mapUrl(url, {
+        const response = await client.map(url, {
           ...options,
           // @ts-expect-error Extended API options including origin
           origin: 'mcp-server',
         });
-        if ('error' in response) {
-          throw new Error(response.error);
-        }
+
         if (!response.links) {
           throw new Error('No links received from Firecrawl API');
         }
@@ -1137,10 +1227,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!isStatusCheckOptions(args)) {
           throw new Error('Invalid arguments for firecrawl_check_crawl_status');
         }
-        const response = await client.checkCrawlStatus(args.id);
-        if (!response.success) {
-          throw new Error(response.error);
-        }
+        const response = await client.getCrawlStatus(args.id);
+
         const status = `Crawl Status:
 Status: ${response.status}
 Progress: ${response.completed}/${response.total}
@@ -1162,29 +1250,32 @@ ${
         try {
           const response = await withRetry(
             async () =>
-              client.search(args.query, { ...args, origin: 'mcp-server' }),
+              client.search(args.query, {
+                ...args,
+                // @ts-expect-error Extended API options including origin
+                origin: 'mcp-server',
+              }),
             'search operation'
           );
 
-          if (!response.success) {
-            throw new Error(
-              `Search failed: ${response.error || 'Unknown error'}`
-            );
-          }
-
           // Format the results
-          const results = response.data
-            .map(
-              (result) =>
-                `URL: ${result.url}
-Title: ${result.title || 'No title'}
-Description: ${result.description || 'No description'}
-${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
-            )
-            .join('\n\n');
+          //           const results = response.data
+          //             .map(
+          //               (result) =>
+          //                 `URL: ${result.url}
+          // Title: ${result.title || 'No title'}
+          // Description: ${result.description || 'No description'}
+          // ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
+          //             )
+          //             .join('\n\n');
 
           return {
-            content: [{ type: 'text', text: trimResponseText(results) }],
+            content: [
+              {
+                type: 'text',
+                text: trimResponseText(JSON.stringify(response, null, 2)),
+              },
+            ],
             isError: false,
           };
         } catch (error) {
@@ -1219,7 +1310,8 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 
           const extractResponse = await withRetry(
             async () =>
-              client.extract(args.urls, {
+              client.extract({
+                urls: args.urls,
                 prompt: args.prompt,
                 systemPrompt: args.systemPrompt,
                 schema: args.schema,
@@ -1286,76 +1378,6 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
             };
           }
 
-          return {
-            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
-            isError: true,
-          };
-        }
-      }
-
-      case 'firecrawl_deep_research': {
-        if (!args || typeof args !== 'object' || !('query' in args)) {
-          throw new Error('Invalid arguments for firecrawl_deep_research');
-        }
-
-        try {
-          const researchStartTime = Date.now();
-          safeLog('info', `Starting deep research for query: ${args.query}`);
-
-          const response = await client.deepResearch(
-            args.query as string,
-            {
-              maxDepth: args.maxDepth as number,
-              timeLimit: args.timeLimit as number,
-              maxUrls: args.maxUrls as number,
-              // @ts-expect-error Extended API options including origin
-              origin: 'mcp-server',
-            },
-            // Activity callback
-            (activity) => {
-              safeLog(
-                'info',
-                `Research activity: ${activity.message} (Depth: ${activity.depth})`
-              );
-            },
-            // Source callback
-            (source) => {
-              safeLog(
-                'info',
-                `Research source found: ${source.url}${source.title ? ` - ${source.title}` : ''}`
-              );
-            }
-          );
-
-          // Log performance metrics
-          safeLog(
-            'info',
-            `Deep research completed in ${Date.now() - researchStartTime}ms`
-          );
-
-          if (!response.success) {
-            throw new Error(response.error || 'Deep research failed');
-          }
-
-          // Format the results
-          const formattedResponse = {
-            finalAnalysis: response.data.finalAnalysis,
-            activities: response.data.activities,
-            sources: response.data.sources,
-          };
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: trimResponseText(formattedResponse.finalAnalysis),
-              },
-            ],
-            isError: false,
-          };
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
           return {
             content: [{ type: 'text', text: trimResponseText(errorMessage) }],
             isError: true,
@@ -1454,12 +1476,11 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 });
 
 // Helper function to format results
-function formatResults(data: FirecrawlDocument[]): string {
+function formatResults(data: Document[]): string {
   return data
     .map((doc) => {
       const content = doc.markdown || doc.html || doc.rawHtml || 'No content';
-      return `URL: ${doc.url || 'Unknown URL'}
-Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}
+      return `Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}
 ${doc.metadata?.title ? `Title: ${doc.metadata.title}` : ''}`;
     })
     .join('\n\n');
@@ -1533,7 +1554,101 @@ async function runSSELocalServer() {
     console.error('Error starting server:', error);
   }
 }
+async function runHTTPStreamableServer() {
+  const app = express();
+  app.use(express.json());
 
+  const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
+
+  // A single endpoint handles all MCP requests.
+  app.all('/mcp', async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      let transport: StreamableHTTPServerTransport;
+
+      if (sessionId && transports[sessionId]) {
+        transport = transports[sessionId];
+      } else if (
+        !sessionId &&
+        req.method === 'POST' &&
+        req.body &&
+        typeof req.body === 'object' &&
+        (req.body as any).method === 'initialize'
+      ) {
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => {
+            const id = randomUUID();
+            return id;
+          },
+          onsessioninitialized: (sid: string) => {
+            transports[sid] = transport;
+          },
+        });
+
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid && transports[sid]) {
+            delete transports[sid];
+          }
+        };
+        console.log('Creating server instance');
+        console.log('Connecting transport to server');
+        await server.connect(transport);
+
+        await transport.handleRequest(req, res, req.body);
+        return;
+      } else {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Invalid or missing session ID',
+          },
+          id: null,
+        });
+        return;
+      }
+
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error',
+          },
+          id: null,
+        });
+      }
+    }
+  });
+
+  const PORT = 3000;
+  const appServer = app.listen(PORT, () => {
+    console.log(`MCP Streamable HTTP Server listening on port ${PORT}`);
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('Shutting down server...');
+    for (const sessionId in transports) {
+      try {
+        console.log(`Closing transport for session ${sessionId}`);
+        await transports[sessionId].close();
+        delete transports[sessionId];
+      } catch (error) {
+        console.error(
+          `Error closing transport for session ${sessionId}:`,
+          error
+        );
+      }
+    }
+    appServer.close(() => {
+      console.log('Server shutdown complete');
+      process.exit(0);
+    });
+  });
+}
 async function runSSECloudServer() {
   const transports: { [sessionId: string]: SSEServerTransport } = {};
   const app = express();
@@ -1605,6 +1720,12 @@ if (process.env.CLOUD_SERVICE === 'true') {
   });
 } else if (process.env.SSE_LOCAL === 'true') {
   runSSELocalServer().catch((error: any) => {
+    console.error('Fatal error running server:', error);
+    process.exit(1);
+  });
+} else if (process.env.HTTP_STREAMABLE_SERVER === 'true') {
+  console.log('Running HTTP Streamable Server');
+  runHTTPStreamableServer().catch((error: any) => {
     console.error('Fatal error running server:', error);
     process.exit(1);
   });
