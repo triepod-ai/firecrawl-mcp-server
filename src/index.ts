@@ -57,16 +57,40 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
       formats: {
         type: 'array',
         items: {
-          type: 'string',
-          enum: [
-            'markdown',
-            'html',
-            'rawHtml',
-            'screenshot',
-            'links',
-            'screenshot@fullPage',
-            'extract',
-            'summary',
+          oneOf: [
+            {
+              type: 'string',
+              enum: [
+                'markdown',
+                'html',
+                'rawHtml',
+                'screenshot',
+                'links',
+                'extract',
+                'summary',
+              ],
+            },
+            {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['json'],
+                },
+                prompt: {
+                  type: 'string',
+                  description: 'Prompt to guide JSON extraction',
+                },
+                schema: {
+                  type: 'object',
+                  description: 'JSON schema for structured extraction',
+                },
+              },
+              required: ['type'],
+              additionalProperties: true,
+              description:
+                'Advanced format option. Use { type: "json", prompt, schema } to request structured JSON extraction.',
+            },
           ],
         },
         default: ['markdown'],
@@ -144,24 +168,6 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
           required: ['type'],
         },
         description: 'List of actions to perform before scraping',
-      },
-      extract: {
-        type: 'object',
-        properties: {
-          schema: {
-            type: 'object',
-            description: 'Schema for structured data extraction',
-          },
-          systemPrompt: {
-            type: 'string',
-            description: 'System prompt for LLM extraction',
-          },
-          prompt: {
-            type: 'string',
-            description: 'User prompt for LLM extraction',
-          },
-        },
-        description: 'Configuration for structured data extraction',
       },
       mobile: {
         type: 'boolean',
@@ -267,7 +273,7 @@ Map a website to discover all indexed URLs on the site.
 const CRAWL_TOOL: Tool = {
   name: 'firecrawl_crawl',
   description: `
- Starts an asynchronous crawl job on a website and extracts content from all pages.
+ Starts a crawl job on a website and extracts content from all pages.
  
  **Best for:** Extracting content from multiple related pages, when you need comprehensive coverage.
  **Not recommended for:** Extracting content from a single page (use scrape); when token limits are a concern (use map + batch_scrape); when you need fast results (crawling can be slow).
@@ -392,17 +398,44 @@ const CRAWL_TOOL: Tool = {
           formats: {
             type: 'array',
             items: {
-              type: 'string',
-              enum: [
-                'markdown',
-                'html',
-                'rawHtml',
-                'screenshot',
-                'links',
-                'screenshot@fullPage',
-                'extract',
+              oneOf: [
+                {
+                  type: 'string',
+                  enum: [
+                    'markdown',
+                    'html',
+                    'rawHtml',
+                    'screenshot',
+                    'links',
+                    'extract',
+                    'summary',
+                  ],
+                },
+                {
+                  type: 'object',
+                  properties: {
+                    type: {
+                      type: 'string',
+                      enum: ['json'],
+                    },
+                    prompt: {
+                      type: 'string',
+                      description: 'Prompt to guide JSON extraction',
+                    },
+                    schema: {
+                      type: 'object',
+                      description: 'JSON schema for structured extraction',
+                    },
+                  },
+                  required: ['type'],
+                  additionalProperties: true,
+                  description:
+                    'Advanced format option. Use { type: "json", prompt, schema } to request structured JSON extraction.',
+                },
               ],
             },
+            default: ['markdown'],
+            description: "Content formats to extract (default: ['markdown'])",
           },
           onlyMainContent: {
             type: 'boolean',
@@ -552,8 +585,22 @@ Search the web and optionally extract content from search results. This is the m
           formats: {
             type: 'array',
             items: {
-              type: 'string',
-              enum: ['markdown', 'html', 'rawHtml'],
+              oneOf: [
+                {
+                  type: 'string',
+                  enum: ['markdown', 'html', 'rawHtml'],
+                },
+                {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', enum: ['json'] },
+                    prompt: { type: 'string' },
+                    schema: { type: 'object' },
+                  },
+                  required: ['type'],
+                  additionalProperties: true,
+                },
+              ],
             },
             description: 'Content formats to extract from search results',
           },
@@ -805,7 +852,7 @@ interface SearchOptions {
     languages?: string[];
   };
   scrapeOptions?: {
-    formats?: string[];
+    formats?: any[];
     onlyMainContent?: boolean;
     waitFor?: number;
     includeTags?: string[];
@@ -1097,7 +1144,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!isScrapeOptions(args)) {
           throw new Error('Invalid arguments for firecrawl_scrape');
         }
-        const { url, ...options } = args;
+        const { url, ...options } = args as any;
         const cleaned = removeEmptyTopLevel(options);
         try {
           const scrapeStartTime = Date.now();
@@ -1108,37 +1155,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const response = await client.scrape(url, {
             ...cleaned,
             origin: 'mcp-server',
-          });
+          } as any);
           // Log performance metrics
           safeLog(
             'info',
             `Scrape completed in ${Date.now() - scrapeStartTime}ms`
           );
 
-          // if ('success' in response && !response.success) {
-          //   throw new Error(response.error || 'Scraping failed');
-          // }
-
           // Format content based on requested formats
-          const contentParts = [];
+          const contentParts: string[] = [];
 
-          if (options.formats?.includes('markdown') && response.markdown) {
-            contentParts.push(response.markdown);
+          const formats = (options?.formats ?? []) as any[];
+          const hasFormat = (name: string) =>
+            Array.isArray(formats) &&
+            formats.some((f) =>
+              typeof f === 'string'
+                ? f === name
+                : f && typeof f === 'object' && (f as any).type === name
+            );
+
+          if (hasFormat('markdown') && (response as any).markdown) {
+            contentParts.push((response as any).markdown);
           }
-          if (options.formats?.includes('html') && response.html) {
-            contentParts.push(response.html);
+          if (hasFormat('html') && (response as any).html) {
+            contentParts.push((response as any).html);
           }
-          if (options.formats?.includes('rawHtml') && response.rawHtml) {
-            contentParts.push(response.rawHtml);
+          if (hasFormat('rawHtml') && (response as any).rawHtml) {
+            contentParts.push((response as any).rawHtml);
           }
-          if (options.formats?.includes('links') && response.links) {
-            contentParts.push(response.links.join('\n'));
+          if (hasFormat('links') && (response as any).links) {
+            contentParts.push((response as any).links.join('\n'));
           }
-          if (options.formats?.includes('screenshot') && response.screenshot) {
-            contentParts.push(response.screenshot);
+          if (hasFormat('screenshot') && (response as any).screenshot) {
+            contentParts.push((response as any).screenshot);
           }
-          if (options.formats?.includes('json') && response.json) {
-            contentParts.push(JSON.stringify(response.json, null, 2));
+          if (hasFormat('json') && (response as any).json) {
+            contentParts.push(JSON.stringify((response as any).json, null, 2));
           }
 
           // If options.formats is empty, default to markdown
@@ -1147,8 +1199,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
 
           // Add warning to response if present
-          if (response.warning) {
-            safeLog('warning', response.warning);
+          if ((response as any).warning) {
+            safeLog('warning', (response as any).warning);
           }
 
           return {
@@ -1201,22 +1253,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { url, ...options } = args;
         const response = await withRetry(
           async () =>
-            // @ts-expect-error Extended API options including origin
-            client.asyncCrawlUrl(url, { ...options, origin: 'mcp-server' }),
+            client.crawl(url as string, {
+              ...options,
+              // @ts-expect-error Extended API options including origin
+              origin: 'mcp-server',
+            }),
           'crawl operation'
         );
-
-        if (!response.success) {
-          throw new Error(response.error);
-        }
 
         return {
           content: [
             {
               type: 'text',
-              text: trimResponseText(
-                `Started crawl for ${url} with job ID: ${response.id}. Use firecrawl_check_crawl_status to check progress.`
-              ),
+              text: trimResponseText(JSON.stringify(response)),
             },
           ],
           isError: false,
@@ -1257,17 +1306,6 @@ ${
               }),
             'search operation'
           );
-
-          // Format the results
-          //           const results = response.data
-          //             .map(
-          //               (result) =>
-          //                 `URL: ${result.url}
-          // Title: ${result.title || 'No title'}
-          // Description: ${result.description || 'No description'}
-          // ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
-          //             )
-          //             .join('\n\n');
 
           return {
             content: [
