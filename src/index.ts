@@ -8,12 +8,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import FirecrawlApp, {
-  type ScrapeParams,
-  type MapParams,
-  type CrawlParams,
-  type FirecrawlDocument,
-} from '@mendable/firecrawl-js';
+import Firecrawl from '@mendable/firecrawl-js';
 
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
@@ -55,15 +50,38 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
       formats: {
         type: 'array',
         items: {
-          type: 'string',
-          enum: [
-            'markdown',
-            'html',
-            'rawHtml',
-            'screenshot',
-            'links',
-            'screenshot@fullPage',
-            'extract',
+          oneOf: [
+            {
+              type: 'string',
+              enum: [
+                'markdown',
+                'html',
+                'rawHtml',
+                'links',
+                'summary',
+              ],
+            },
+            {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['json', 'screenshot'],
+                },
+                prompt: { type: 'string' },
+                schema: { type: 'object' },
+                fullPage: { type: 'boolean' },
+                quality: { type: 'number' },
+                viewport: {
+                  type: 'object',
+                  properties: {
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                  },
+                },
+              },
+              required: ['type'],
+            },
           ],
         },
         default: ['markdown'],
@@ -682,6 +700,109 @@ Generate a standardized llms.txt (and optionally llms-full.txt) file for a given
   },
 };
 
+const BATCH_SCRAPE_TOOL: Tool = {
+  name: 'firecrawl_batch_scrape',
+  description: `
+Start an asynchronous batch scrape job for multiple URLs.
+
+**Best for:** Scraping multiple URLs efficiently with concurrent processing.
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_batch_scrape",
+  "arguments": {
+    "urls": ["https://example.com/page1", "https://example.com/page2"],
+    "formats": ["markdown"]
+  }
+}
+\`\`\`
+**Returns:** Job ID for status checking; use firecrawl_check_batch_scrape_status to check progress.
+`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Array of URLs to scrape',
+      },
+      formats: {
+        type: 'array',
+        items: {
+          oneOf: [
+            {
+              type: 'string',
+              enum: [
+                'markdown',
+                'html',
+                'rawHtml',
+                'links',
+                'summary',
+              ],
+            },
+            {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['json', 'screenshot'],
+                },
+                prompt: { type: 'string' },
+                schema: { type: 'object' },
+                fullPage: { type: 'boolean' },
+                quality: { type: 'number' },
+                viewport: {
+                  type: 'object',
+                  properties: {
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                  },
+                },
+              },
+              required: ['type'],
+            },
+          ],
+        },
+        default: ['markdown'],
+        description: "Content formats to extract (default: ['markdown'])",
+      },
+      options: {
+        type: 'object',
+        description: 'Additional scraping options',
+      },
+    },
+    required: ['urls'],
+  },
+};
+
+const CHECK_BATCH_SCRAPE_STATUS_TOOL: Tool = {
+  name: 'firecrawl_check_batch_scrape_status',
+  description: `
+Check the status of a batch scrape job.
+
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_check_batch_scrape_status",
+  "arguments": {
+    "id": "batch-job-id"
+  }
+}
+\`\`\`
+**Returns:** Status and progress of the batch scrape job.
+`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        description: 'Batch scrape job ID to check',
+      },
+    },
+    required: ['id'],
+  },
+};
+
 /**
  * Parameters for LLMs.txt generation operations.
  */
@@ -749,17 +870,6 @@ interface SearchOptions {
   };
 }
 
-// Add after other interfaces
-interface ExtractParams<T = any> {
-  prompt?: string;
-  systemPrompt?: string;
-  schema?: T | object;
-  allowExternalLinks?: boolean;
-  enableWebSearch?: boolean;
-  includeSubdomains?: boolean;
-  origin?: string;
-}
-
 interface ExtractArgs {
   urls: string[];
   prompt?: string;
@@ -782,7 +892,7 @@ interface ExtractResponse<T = any> {
 // Type guards
 function isScrapeOptions(
   args: unknown
-): args is ScrapeParams & { url: string } {
+): args is { url: string; [key: string]: any } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -791,7 +901,7 @@ function isScrapeOptions(
   );
 }
 
-function isMapOptions(args: unknown): args is MapParams & { url: string } {
+function isMapOptions(args: unknown): args is { url: string; [key: string]: any } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -800,7 +910,7 @@ function isMapOptions(args: unknown): args is MapParams & { url: string } {
   );
 }
 
-function isCrawlOptions(args: unknown): args is CrawlParams & { url: string } {
+function isCrawlOptions(args: unknown): args is { url: string; [key: string]: any } {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -965,10 +1075,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     MAP_TOOL,
     CRAWL_TOOL,
     CHECK_CRAWL_STATUS_TOOL,
+    BATCH_SCRAPE_TOOL,
+    CHECK_BATCH_SCRAPE_STATUS_TOOL,
     SEARCH_TOOL,
     EXTRACT_TOOL,
     DEEP_RESEARCH_TOOL,
     GENERATE_LLMSTXT_TOOL,
+    BATCH_SCRAPE_TOOL,
+    CHECK_BATCH_SCRAPE_STATUS_TOOL,
   ],
 }));
 
@@ -984,7 +1098,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new Error('No API key provided');
     }
 
-    const client = new FirecrawlApp({
+    const client = new Firecrawl({
       apiKey,
       ...(FIRECRAWL_API_URL ? { apiUrl: FIRECRAWL_API_URL } : {}),
     });
@@ -1011,11 +1125,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             `Starting scrape for URL: ${url} with options: ${JSON.stringify(options)}`
           );
 
-          const response = await client.scrapeUrl(url, {
+          const response = await client.scrape(url, {
             ...options,
-            // @ts-expect-error Extended API options including origin
             origin: 'mcp-server',
-          });
+          } as any);
 
           // Log performance metrics
           safeLog(
@@ -1024,29 +1137,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           );
 
           if ('success' in response && !response.success) {
-            throw new Error(response.error || 'Scraping failed');
+            throw new Error((response as any).error || 'Scraping failed');
           }
 
           // Format content based on requested formats
           const contentParts = [];
 
-          if (options.formats?.includes('markdown') && response.markdown) {
-            contentParts.push(response.markdown);
+          if ((options as any).formats?.includes('markdown') && (response as any).markdown) {
+            contentParts.push((response as any).markdown);
           }
-          if (options.formats?.includes('html') && response.html) {
-            contentParts.push(response.html);
+          if ((options as any).formats?.includes('html') && (response as any).html) {
+            contentParts.push((response as any).html);
           }
-          if (options.formats?.includes('rawHtml') && response.rawHtml) {
-            contentParts.push(response.rawHtml);
+          if ((options as any).formats?.includes('rawHtml') && (response as any).rawHtml) {
+            contentParts.push((response as any).rawHtml);
           }
-          if (options.formats?.includes('links') && response.links) {
-            contentParts.push(response.links.join('\n'));
+          if ((options as any).formats?.includes('links') && (response as any).links) {
+            contentParts.push((response as any).links.join('\n'));
           }
-          if (options.formats?.includes('screenshot') && response.screenshot) {
-            contentParts.push(response.screenshot);
+          if ((options as any).formats?.includes('screenshot') && (response as any).screenshot) {
+            contentParts.push((response as any).screenshot);
           }
-          if (options.formats?.includes('extract') && response.extract) {
-            contentParts.push(JSON.stringify(response.extract, null, 2));
+          if ((options as any).formats?.includes('extract') && (response as any).extract) {
+            contentParts.push(JSON.stringify((response as any).extract, null, 2));
           }
 
           // If options.formats is empty, default to markdown
@@ -1085,13 +1198,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error('Invalid arguments for firecrawl_map');
         }
         const { url, ...options } = args;
-        const response = await client.mapUrl(url, {
+        const response = await client.map(url, {
           ...options,
-          // @ts-expect-error Extended API options including origin
           origin: 'mcp-server',
-        });
+        } as any);
         if ('error' in response) {
-          throw new Error(response.error);
+          throw new Error((response as any).error);
         }
         if (!response.links) {
           throw new Error('No links received from Firecrawl API');
@@ -1111,13 +1223,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { url, ...options } = args;
         const response = await withRetry(
           async () =>
-            // @ts-expect-error Extended API options including origin
-            client.asyncCrawlUrl(url, { ...options, origin: 'mcp-server' }),
+            client.startCrawl(url, { ...options, origin: 'mcp-server' } as any),
           'crawl operation'
         );
 
-        if (!response.success) {
-          throw new Error(response.error);
+        if ('success' in response && !response.success) {
+          throw new Error((response as any).error);
         }
 
         return {
@@ -1137,9 +1248,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!isStatusCheckOptions(args)) {
           throw new Error('Invalid arguments for firecrawl_check_crawl_status');
         }
-        const response = await client.checkCrawlStatus(args.id);
-        if (!response.success) {
-          throw new Error(response.error);
+        const response = await client.getCrawlStatus(args.id);
+        if ('success' in response && !response.success) {
+          throw new Error((response as any).error);
         }
         const status = `Crawl Status:
 Status: ${response.status}
@@ -1155,6 +1266,53 @@ ${
         };
       }
 
+      case 'firecrawl_batch_scrape': {
+        if (!Array.isArray(args.urls)) {
+          throw new Error('Invalid arguments for firecrawl_batch_scrape');
+        }
+        const { urls, ...options } = args;
+        const response = await withRetry(
+          async () =>
+            client.startBatchScrape(urls, { ...options, origin: 'mcp-server' } as any),
+          'batch scrape operation'
+        );
+        
+        if ('success' in response && !response.success) {
+          throw new Error((response as any).error);
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: trimResponseText(
+                `Started batch scrape for ${urls.length} URLs with job ID: ${response.id}. Use firecrawl_check_batch_scrape_status to check progress.`
+              ),
+            },
+          ],
+          isError: false,
+        };
+      }
+
+      case 'firecrawl_check_batch_scrape_status': {
+        if (!isStatusCheckOptions(args)) {
+          throw new Error('Invalid arguments for firecrawl_check_batch_scrape_status');
+        }
+        const response = await client.getBatchScrapeStatus(args.id);
+        if ('success' in response && !response.success) {
+          throw new Error((response as any).error);
+        }
+        const status = `Batch Scrape Status:
+Status: ${response.status}
+Progress: ${response.completed}/${response.total}
+Credits Used: ${response.creditsUsed}
+${response.data.length > 0 ? '\nResults:\n' + formatResults(response.data) : ''}`;
+        return {
+          content: [{ type: 'text', text: trimResponseText(status) }],
+          isError: false,
+        };
+      }
+
       case 'firecrawl_search': {
         if (!isSearchOptions(args)) {
           throw new Error('Invalid arguments for firecrawl_search');
@@ -1162,20 +1320,20 @@ ${
         try {
           const response = await withRetry(
             async () =>
-              client.search(args.query, { ...args, origin: 'mcp-server' }),
+              client.search(args.query, { ...args, origin: 'mcp-server' } as any),
             'search operation'
           );
 
-          if (!response.success) {
+          if ('success' in response && !response.success) {
             throw new Error(
-              `Search failed: ${response.error || 'Unknown error'}`
+              `Search failed: ${(response as any).error || 'Unknown error'}`
             );
           }
 
           // Format the results
-          const results = response.data
+          const results = (response as any).data
             .map(
-              (result) =>
+              (result: any) =>
                 `URL: ${result.url}
 Title: ${result.title || 'No title'}
 Description: ${result.description || 'No description'}
@@ -1219,15 +1377,14 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 
           const extractResponse = await withRetry(
             async () =>
-              client.extract(args.urls, {
+              client.extract({
+                urls: args.urls,
                 prompt: args.prompt,
                 systemPrompt: args.systemPrompt,
-                schema: args.schema,
+                schema: args.schema as any,
                 allowExternalLinks: args.allowExternalLinks,
                 enableWebSearch: args.enableWebSearch,
-                includeSubdomains: args.includeSubdomains,
-                origin: 'mcp-server',
-              } as ExtractParams),
+              } as any),
             'extract operation'
           );
 
@@ -1302,24 +1459,23 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
           const researchStartTime = Date.now();
           safeLog('info', `Starting deep research for query: ${args.query}`);
 
-          const response = await client.deepResearch(
+          const response = await (client as any).deepResearch(
             args.query as string,
             {
               maxDepth: args.maxDepth as number,
               timeLimit: args.timeLimit as number,
               maxUrls: args.maxUrls as number,
-              // @ts-expect-error Extended API options including origin
               origin: 'mcp-server',
             },
             // Activity callback
-            (activity) => {
+            (activity: any) => {
               safeLog(
                 'info',
                 `Research activity: ${activity.message} (Depth: ${activity.depth})`
               );
             },
             // Source callback
-            (source) => {
+            (source: any) => {
               safeLog(
                 'info',
                 `Research source found: ${source.url}${source.title ? ` - ${source.title}` : ''}`
@@ -1454,7 +1610,7 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 });
 
 // Helper function to format results
-function formatResults(data: FirecrawlDocument[]): string {
+function formatResults(data: any[]): string {
   return data
     .map((doc) => {
       const content = doc.markdown || doc.html || doc.rawHtml || 'No content';
