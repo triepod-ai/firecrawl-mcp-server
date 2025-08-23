@@ -248,9 +248,10 @@ Map a website to discover all indexed URLs on the site.
       sitemap: {
         type: 'string',
         enum: ['include', 'skip', 'only'],
-        description: 'Sitemap handling: "include" - use sitemap + find other pages (default), "skip" - ignore sitemap completely, "only" - only return sitemap URLs',
+        description:
+          'Sitemap handling: "include" - use sitemap + find other pages (default), "skip" - ignore sitemap completely, "only" - only return sitemap URLs',
       },
-      
+
       includeSubdomains: {
         type: 'boolean',
         description: 'Include URLs from subdomains in results',
@@ -1093,10 +1094,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             contentParts.push(JSON.stringify((response as any).json, null, 2));
           }
           if (hasFormat('changeTracking') && (response as any).changeTracking) {
-            contentParts.push(JSON.stringify((response as any).changeTracking, null, 2));
+            contentParts.push(
+              JSON.stringify((response as any).changeTracking, null, 2)
+            );
           }
           if (hasFormat('summary') && (response as any).summary) {
-            contentParts.push(JSON.stringify((response as any).summary, null, 2));
+            contentParts.push(
+              JSON.stringify((response as any).summary, null, 2)
+            );
           }
 
           // If options.formats is empty, default to markdown
@@ -1146,7 +1151,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         return {
           content: [
-            { type: 'text', text: trimResponseText(JSON.stringify(response.links, null, 2)) },
+            {
+              type: 'text',
+              text: trimResponseText(JSON.stringify(response.links, null, 2)),
+            },
           ],
           isError: false,
         };
