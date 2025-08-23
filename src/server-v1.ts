@@ -921,10 +921,11 @@ export function createV1Server() {
     try {
       const { name, arguments: args } = request.params;
 
-      const apiKey = process.env.CLOUD_SERVICE
-        ? (request.params._meta?.apiKey as string)
-        : FIRECRAWL_API_KEY;
-      if (process.env.CLOUD_SERVICE && !apiKey) {
+      const apiKey =
+        process.env.CLOUD_SERVICE === 'true'
+          ? (request.params._meta?.apiKey as string)
+          : FIRECRAWL_API_KEY;
+      if (process.env.CLOUD_SERVICE === 'true' && !apiKey) {
         throw new Error('No API key provided');
       }
 
