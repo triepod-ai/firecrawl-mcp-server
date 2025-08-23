@@ -42,13 +42,8 @@ export async function runVersionedSSECloudServer() {
   // V1 SSE endpoint (legacy)
   app.get('/:apiKey/sse', async (req, res) => {
     const apiKey = req.params.apiKey;
-    res.set({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
-    (res as any).flushHeaders?.();
-    const transport = new SSEServerTransport('/messages', res);
+    
+    const transport = new SSEServerTransport(`/${apiKey}/messages`, res);
 
     console.log(`[V1] New SSE connection for API key: ${apiKey}`);
     
@@ -71,13 +66,8 @@ export async function runVersionedSSECloudServer() {
   // V2 SSE endpoint (new)
   app.get('/:apiKey/v2/sse', async (req, res) => {
     const apiKey = req.params.apiKey;
-    res.set({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
-    (res as any).flushHeaders?.();
-    const transport = new SSEServerTransport('/v2/messages', res);
+    
+    const transport = new SSEServerTransport(`/${apiKey}/v2/messages`, res);
 
     console.log(`[V2] New SSE connection for API key: ${apiKey}`);
     
