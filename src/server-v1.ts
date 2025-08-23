@@ -974,23 +974,30 @@ export function createV1Server() {
 
             // Format content based on requested formats
             const contentParts = [];
+            const requestedFormats =
+              options.formats && options.formats.length > 0
+                ? options.formats
+                : ['markdown'];
 
-            if (options.formats?.includes('markdown') && response.markdown) {
+            if (requestedFormats.includes('markdown') && response.markdown) {
               contentParts.push(response.markdown);
             }
-            if (options.formats?.includes('html') && response.html) {
+            if (requestedFormats.includes('html') && response.html) {
               contentParts.push(response.html);
             }
-            if (options.formats?.includes('rawHtml') && response.rawHtml) {
+            if (requestedFormats.includes('rawHtml') && response.rawHtml) {
               contentParts.push(response.rawHtml);
             }
-            if (options.formats?.includes('links') && response.links) {
+            if (requestedFormats.includes('links') && response.links) {
               contentParts.push(response.links.join('\n'));
             }
-            if (options.formats?.includes('screenshot') && response.screenshot) {
+            if (
+              requestedFormats.includes('screenshot') &&
+              response.screenshot
+            ) {
               contentParts.push(response.screenshot);
             }
-            if (options.formats?.includes('extract') && response.extract) {
+            if (requestedFormats.includes('extract') && response.extract) {
               contentParts.push(JSON.stringify(response.extract, null, 2));
             }
 
