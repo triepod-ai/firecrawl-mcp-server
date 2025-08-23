@@ -40,7 +40,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
   "arguments": {
     "url": "https://example.com",
     "formats": ["markdown"],
-    "maxAge": 3600000
+    "maxAge": 172800000
   }
 }
 \`\`\`
