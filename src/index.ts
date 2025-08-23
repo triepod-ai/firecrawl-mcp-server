@@ -699,25 +699,25 @@ Extract structured information from web pages using LLM capabilities. Supports b
   },
 };
 
-/**
- * Parameters for LLMs.txt generation operations.
- */
-interface GenerateLLMsTextParams {
-  /**
-   * Maximum number of URLs to process (1-100)
-   * @default 10
-   */
-  maxUrls?: number;
-  /**
-   * Whether to show the full LLMs-full.txt in the response
-   * @default false
-   */
-  showFullText?: boolean;
-  /**
-   * Experimental flag for streaming
-   */
-  __experimental_stream?: boolean;
-}
+// /**
+//  * Parameters for LLMs.txt generation operations.
+//  */
+// interface GenerateLLMsTextParams {
+//   /**
+//    * Maximum number of URLs to process (1-100)
+//    * @default 10
+//    */
+//   maxUrls?: number;
+//   /**
+//    * Whether to show the full LLMs-full.txt in the response
+//    * @default false
+//    */
+//   showFullText?: boolean;
+//   /**
+//    * Experimental flag for streaming
+//    */
+//   __experimental_stream?: boolean;
+// }
 
 /**
  * Response interface for LLMs.txt generation operations.
@@ -862,17 +862,6 @@ function isExtractOptions(args: unknown): args is ExtractArgs {
   return (
     Array.isArray(urls) &&
     urls.every((url): url is string => typeof url === 'string')
-  );
-}
-
-function isGenerateLLMsTextOptions(
-  args: unknown
-): args is { url: string } & Partial<GenerateLLMsTextParams> {
-  return (
-    typeof args === 'object' &&
-    args !== null &&
-    'url' in args &&
-    typeof (args as { url: unknown }).url === 'string'
   );
 }
 
