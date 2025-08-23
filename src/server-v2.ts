@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   Tool,
@@ -12,17 +11,14 @@ import FirecrawlApp, {
   type ScrapeOptions,
   type MapOptions,
   type Document,
-} from '@mendable/firecrawl-js';
-
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+} from 'firecrawl-js-current';
 
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
-import { randomUUID } from 'node:crypto';
 
 dotenv.config();
 
-// Tool definitions
+// Tool definitions for V2
 const SCRAPE_TOOL: Tool = {
   name: 'firecrawl_scrape',
   description: `
@@ -554,15 +550,6 @@ Search the web and optionally extract content from search results. This is the m
               type: 'object',
               properties: {
                 type: { type: 'string', enum: ['web'] },
-                // tbs: {
-                //   type: 'string',
-                //   description:
-                //     'Time-based search parameter (e.g., qdr:h, qdr:d, qdr:w, qdr:m, qdr:y or custom cdr with cd_min/cd_max)',
-                // },
-                // location: {
-                //   type: 'string',
-                //   description: 'Location parameter for search results',
-                // },
               },
               required: ['type'],
               additionalProperties: false,
@@ -699,48 +686,7 @@ Extract structured information from web pages using LLM capabilities. Supports b
   },
 };
 
-// /**
-//  * Parameters for LLMs.txt generation operations.
-//  */
-// interface GenerateLLMsTextParams {
-//   /**
-//    * Maximum number of URLs to process (1-100)
-//    * @default 10
-//    */
-//   maxUrls?: number;
-//   /**
-//    * Whether to show the full LLMs-full.txt in the response
-//    * @default false
-//    */
-//   showFullText?: boolean;
-//   /**
-//    * Experimental flag for streaming
-//    */
-//   __experimental_stream?: boolean;
-// }
-
-/**
- * Response interface for LLMs.txt generation operations.
- */
-// interface GenerateLLMsTextResponse {
-//   success: boolean;
-//   id: string;
-// }
-
-/**
- * Status response interface for LLMs.txt generation operations.
- */
-// interface GenerateLLMsTextStatusResponse {
-//   success: boolean;
-//   data: {
-//     llmstxt: string;
-//     llmsfulltxt?: string;
-//   };
-//   status: 'processing' | 'completed' | 'failed';
-//   error?: string;
-//   expiresAt: string;
-// }
-
+// Interfaces for V2
 interface StatusCheckOptions {
   id: string;
 }
@@ -779,7 +725,6 @@ interface SearchOptions {
   >;
 }
 
-// Add after other interfaces
 interface ExtractParams<T = any> {
   prompt?: string;
   schema?: T | object;
@@ -807,7 +752,7 @@ interface ExtractResponse<T = any> {
   creditsUsed?: number;
 }
 
-// Type guards
+// Type guards for V2
 function isScrapeOptions(
   args: unknown
 ): args is ScrapeOptions & { url: string } {
@@ -885,303 +830,288 @@ function removeEmptyTopLevel<T extends Record<string, any>>(
   return out;
 }
 
-// Server implementation
-const server = new Server(
-  {
-    name: 'firecrawl-mcp',
-    version: '1.7.0',
-  },
-  {
-    capabilities: {
-      tools: {},
+// Create V2 Server
+export function createV2Server() {
+  const server = new Server(
+    {
+      name: 'firecrawl-mcp-v2',
+      version: '2.0.0',
     },
-  }
-);
-
-// Get optional API URL
-const FIRECRAWL_API_URL = process.env.FIRECRAWL_API_URL;
-const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-
-// Check if API key is required (only for cloud service)
-if (
-  process.env.CLOUD_SERVICE !== 'true' &&
-  !FIRECRAWL_API_URL &&
-  !FIRECRAWL_API_KEY
-) {
-  console.error(
-    'Error: FIRECRAWL_API_KEY environment variable is required when using the cloud service'
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
   );
-  process.exit(1);
-}
 
-// Initialize Firecrawl client with optional API URL
+  // Get optional API URL
+  const FIRECRAWL_API_URL = process.env.FIRECRAWL_API_URL;
+  const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
-// Configuration for retries and monitoring
-const CONFIG = {
-  retry: {
-    maxAttempts: Number(process.env.FIRECRAWL_RETRY_MAX_ATTEMPTS) || 3,
-    initialDelay: Number(process.env.FIRECRAWL_RETRY_INITIAL_DELAY) || 1000,
-    maxDelay: Number(process.env.FIRECRAWL_RETRY_MAX_DELAY) || 10000,
-    backoffFactor: Number(process.env.FIRECRAWL_RETRY_BACKOFF_FACTOR) || 2,
-  },
-  credit: {
-    warningThreshold:
-      Number(process.env.FIRECRAWL_CREDIT_WARNING_THRESHOLD) || 1000,
-    criticalThreshold:
-      Number(process.env.FIRECRAWL_CREDIT_CRITICAL_THRESHOLD) || 100,
-  },
-};
+  // Configuration for retries and monitoring
+  const CONFIG = {
+    retry: {
+      maxAttempts: Number(process.env.FIRECRAWL_RETRY_MAX_ATTEMPTS) || 3,
+      initialDelay: Number(process.env.FIRECRAWL_RETRY_INITIAL_DELAY) || 1000,
+      maxDelay: Number(process.env.FIRECRAWL_RETRY_MAX_DELAY) || 10000,
+      backoffFactor: Number(process.env.FIRECRAWL_RETRY_BACKOFF_FACTOR) || 2,
+    },
+    credit: {
+      warningThreshold:
+        Number(process.env.FIRECRAWL_CREDIT_WARNING_THRESHOLD) || 1000,
+      criticalThreshold:
+        Number(process.env.FIRECRAWL_CREDIT_CRITICAL_THRESHOLD) || 100,
+    },
+  };
 
-// Add utility function for delay
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-let isStdioTransport = false;
-
-function safeLog(
-  level:
-    | 'error'
-    | 'debug'
-    | 'info'
-    | 'notice'
-    | 'warning'
-    | 'critical'
-    | 'alert'
-    | 'emergency',
-  data: any
-): void {
-  // Always log to stderr to avoid relying on MCP logging capability
-  const message = `[${level}] ${
-    typeof data === 'object' ? JSON.stringify(data) : String(data)
-  }`;
-  console.error(message);
-}
-
-// Add retry logic with exponential backoff
-async function withRetry<T>(
-  operation: () => Promise<T>,
-  context: string,
-  attempt = 1
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    const isRateLimit =
-      error instanceof Error &&
-      (error.message.includes('rate limit') || error.message.includes('429'));
-
-    if (isRateLimit && attempt < CONFIG.retry.maxAttempts) {
-      const delayMs = Math.min(
-        CONFIG.retry.initialDelay *
-          Math.pow(CONFIG.retry.backoffFactor, attempt - 1),
-        CONFIG.retry.maxDelay
-      );
-
-      safeLog(
-        'warning',
-        `Rate limit hit for ${context}. Attempt ${attempt}/${CONFIG.retry.maxAttempts}. Retrying in ${delayMs}ms`
-      );
-
-      await delay(delayMs);
-      return withRetry(operation, context, attempt + 1);
-    }
-
-    throw error;
+  // Add utility function for delay
+  function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
-}
 
-// Tool handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    SCRAPE_TOOL,
-    MAP_TOOL,
-    CRAWL_TOOL,
-    CHECK_CRAWL_STATUS_TOOL,
-    SEARCH_TOOL,
-    EXTRACT_TOOL,
-  ],
-}));
+  function safeLog(
+    level:
+      | 'error'
+      | 'debug'
+      | 'info'
+      | 'notice'
+      | 'warning'
+      | 'critical'
+      | 'alert'
+      | 'emergency',
+    data: any
+  ): void {
+    // Always log to stderr to avoid relying on MCP logging capability
+    const message = `[V2][${level}] ${
+      typeof data === 'object' ? JSON.stringify(data) : String(data)
+    }`;
+    console.error(message);
+  }
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const startTime = Date.now();
-  try {
-    const { name, arguments: args } = request.params;
-    const apiKey =
-      process.env.CLOUD_SERVICE === 'true'
-        ? (request.params._meta?.apiKey as string)
-        : FIRECRAWL_API_KEY;
-    if (process.env.CLOUD_SERVICE === 'true' && !apiKey) {
-      throw new Error('No API key provided');
+  // Add retry logic with exponential backoff
+  async function withRetry<T>(
+    operation: () => Promise<T>,
+    context: string,
+    attempt = 1
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      const isRateLimit =
+        error instanceof Error &&
+        (error.message.includes('rate limit') || error.message.includes('429'));
+
+      if (isRateLimit && attempt < CONFIG.retry.maxAttempts) {
+        const delayMs = Math.min(
+          CONFIG.retry.initialDelay *
+            Math.pow(CONFIG.retry.backoffFactor, attempt - 1),
+          CONFIG.retry.maxDelay
+        );
+
+        safeLog(
+          'warning',
+          `Rate limit hit for ${context}. Attempt ${attempt}/${CONFIG.retry.maxAttempts}. Retrying in ${delayMs}ms`
+        );
+
+        await delay(delayMs);
+        return withRetry(operation, context, attempt + 1);
+      }
+
+      throw error;
     }
+  }
 
-    const client = new FirecrawlApp({
-      apiKey,
-      ...(FIRECRAWL_API_URL ? { apiUrl: FIRECRAWL_API_URL } : {}),
-    });
-    // Log incoming request with timestamp
-    safeLog(
-      'info',
-      `[${new Date().toISOString()}] Received request for tool: ${name}`
-    );
+  // Tool handlers
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      SCRAPE_TOOL,
+      MAP_TOOL,
+      CRAWL_TOOL,
+      CHECK_CRAWL_STATUS_TOOL,
+      SEARCH_TOOL,
+      EXTRACT_TOOL,
+    ],
+  }));
 
-    if (!args) {
-      throw new Error('No arguments provided');
-    }
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const startTime = Date.now();
+    try {
+      const { name, arguments: args } = request.params;
+      const apiKey =
+        process.env.CLOUD_SERVICE === 'true'
+          ? (request.params._meta?.apiKey as string)
+          : FIRECRAWL_API_KEY;
+      if (process.env.CLOUD_SERVICE === 'true' && !apiKey) {
+        throw new Error('No API key provided');
+      }
 
-    switch (name) {
-      case 'firecrawl_scrape': {
-        if (!isScrapeOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_scrape');
+      const client = new FirecrawlApp({
+        apiKey,
+        ...(FIRECRAWL_API_URL ? { apiUrl: FIRECRAWL_API_URL } : {}),
+      });
+      // Log incoming request with timestamp
+      safeLog(
+        'info',
+        `[${new Date().toISOString()}] Received request for tool: ${name}`
+      );
+
+      if (!args) {
+        throw new Error('No arguments provided');
+      }
+
+      switch (name) {
+        case 'firecrawl_scrape': {
+          if (!isScrapeOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_scrape');
+          }
+          const { url, ...options } = args as any;
+          const cleaned = removeEmptyTopLevel(options);
+          try {
+            const scrapeStartTime = Date.now();
+            safeLog(
+              'info',
+              `Starting scrape for URL: ${url} with options: ${JSON.stringify(options)}`
+            );
+            const response = await client.scrape(url, {
+              ...cleaned,
+              origin: 'mcp-server',
+            } as any);
+            // Log performance metrics
+            safeLog(
+              'info',
+              `Scrape completed in ${Date.now() - scrapeStartTime}ms`
+            );
+
+            // Format content based on requested formats
+            const contentParts: string[] = [];
+
+            const formats = (options?.formats ?? []) as any[];
+            const hasFormat = (name: string) =>
+              Array.isArray(formats) &&
+              formats.some((f) =>
+                typeof f === 'string'
+                  ? f === name
+                  : f && typeof f === 'object' && (f as any).type === name
+              );
+
+            if (hasFormat('markdown') && (response as any).markdown) {
+              contentParts.push((response as any).markdown);
+            }
+            if (hasFormat('html') && (response as any).html) {
+              contentParts.push((response as any).html);
+            }
+            if (hasFormat('rawHtml') && (response as any).rawHtml) {
+              contentParts.push((response as any).rawHtml);
+            }
+            if (hasFormat('links') && (response as any).links) {
+              contentParts.push((response as any).links.join('\n'));
+            }
+            if (hasFormat('screenshot') && (response as any).screenshot) {
+              contentParts.push((response as any).screenshot);
+            }
+            if (hasFormat('json') && (response as any).json) {
+              contentParts.push(JSON.stringify((response as any).json, null, 2));
+            }
+            if (hasFormat('changeTracking') && (response as any).changeTracking) {
+              contentParts.push(
+                JSON.stringify((response as any).changeTracking, null, 2)
+              );
+            }
+            if (hasFormat('summary') && (response as any).summary) {
+              contentParts.push(
+                JSON.stringify((response as any).summary, null, 2)
+              );
+            }
+
+            // If options.formats is empty, default to markdown
+            if (!options.formats || options.formats.length === 0) {
+              options.formats = ['markdown'];
+            }
+
+            // Add warning to response if present
+            if ((response as any).warning) {
+              safeLog('warning', (response as any).warning);
+            }
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: trimResponseText(
+                    contentParts.join('\n\n') || 'No content available'
+                  ),
+                },
+              ],
+              isError: false,
+            };
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            return {
+              content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+              isError: true,
+            };
+          }
         }
-        const { url, ...options } = args as any;
-        const cleaned = removeEmptyTopLevel(options);
-        try {
-          const scrapeStartTime = Date.now();
-          safeLog(
-            'info',
-            `Starting scrape for URL: ${url} with options: ${JSON.stringify(options)}`
-          );
-          const response = await client.scrape(url, {
-            ...cleaned,
+
+        case 'firecrawl_map': {
+          if (!isMapOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_map');
+          }
+          const { url, ...options } = args;
+          const response = await client.map(url, {
+            ...options,
+            // @ts-expect-error Extended API options including origin
             origin: 'mcp-server',
-          } as any);
-          // Log performance metrics
-          safeLog(
-            'info',
-            `Scrape completed in ${Date.now() - scrapeStartTime}ms`
+          });
+
+          if (!response.links) {
+            throw new Error('No links received from Firecrawl API');
+          }
+          return {
+            content: [
+              {
+                type: 'text',
+                text: trimResponseText(JSON.stringify(response.links, null, 2)),
+              },
+            ],
+            isError: false,
+          };
+        }
+
+        case 'firecrawl_crawl': {
+          if (!isCrawlOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_crawl');
+          }
+          const { url, ...options } = args;
+          const response = await withRetry(
+            async () =>
+              client.crawl(url as string, {
+                ...options,
+                // @ts-expect-error Extended API options including origin
+                origin: 'mcp-server',
+              }),
+            'crawl operation'
           );
-
-          // Format content based on requested formats
-          const contentParts: string[] = [];
-
-          const formats = (options?.formats ?? []) as any[];
-          const hasFormat = (name: string) =>
-            Array.isArray(formats) &&
-            formats.some((f) =>
-              typeof f === 'string'
-                ? f === name
-                : f && typeof f === 'object' && (f as any).type === name
-            );
-
-          if (hasFormat('markdown') && (response as any).markdown) {
-            contentParts.push((response as any).markdown);
-          }
-          if (hasFormat('html') && (response as any).html) {
-            contentParts.push((response as any).html);
-          }
-          if (hasFormat('rawHtml') && (response as any).rawHtml) {
-            contentParts.push((response as any).rawHtml);
-          }
-          if (hasFormat('links') && (response as any).links) {
-            contentParts.push((response as any).links.join('\n'));
-          }
-          if (hasFormat('screenshot') && (response as any).screenshot) {
-            contentParts.push((response as any).screenshot);
-          }
-          if (hasFormat('json') && (response as any).json) {
-            contentParts.push(JSON.stringify((response as any).json, null, 2));
-          }
-          if (hasFormat('changeTracking') && (response as any).changeTracking) {
-            contentParts.push(
-              JSON.stringify((response as any).changeTracking, null, 2)
-            );
-          }
-          if (hasFormat('summary') && (response as any).summary) {
-            contentParts.push(
-              JSON.stringify((response as any).summary, null, 2)
-            );
-          }
-
-          // If options.formats is empty, default to markdown
-          if (!options.formats || options.formats.length === 0) {
-            options.formats = ['markdown'];
-          }
-
-          // Add warning to response if present
-          if ((response as any).warning) {
-            safeLog('warning', (response as any).warning);
-          }
 
           return {
             content: [
               {
                 type: 'text',
-                text: trimResponseText(
-                  contentParts.join('\n\n') || 'No content available'
-                ),
+                text: trimResponseText(JSON.stringify(response)),
               },
             ],
             isError: false,
           };
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          return {
-            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
-            isError: true,
-          };
         }
-      }
 
-      case 'firecrawl_map': {
-        if (!isMapOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_map');
-        }
-        const { url, ...options } = args;
-        const response = await client.map(url, {
-          ...options,
-          // @ts-expect-error Extended API options including origin
-          origin: 'mcp-server',
-        });
+        case 'firecrawl_check_crawl_status': {
+          if (!isStatusCheckOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_check_crawl_status');
+          }
+          const response = await client.getCrawlStatus(args.id);
 
-        if (!response.links) {
-          throw new Error('No links received from Firecrawl API');
-        }
-        return {
-          content: [
-            {
-              type: 'text',
-              text: trimResponseText(JSON.stringify(response.links, null, 2)),
-            },
-          ],
-          isError: false,
-        };
-      }
-
-      case 'firecrawl_crawl': {
-        if (!isCrawlOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_crawl');
-        }
-        const { url, ...options } = args;
-        const response = await withRetry(
-          async () =>
-            client.crawl(url as string, {
-              ...options,
-              // @ts-expect-error Extended API options including origin
-              origin: 'mcp-server',
-            }),
-          'crawl operation'
-        );
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: trimResponseText(JSON.stringify(response)),
-            },
-          ],
-          isError: false,
-        };
-      }
-
-      case 'firecrawl_check_crawl_status': {
-        if (!isStatusCheckOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_check_crawl_status');
-        }
-        const response = await client.getCrawlStatus(args.id);
-
-        const status = `Crawl Status:
+          const status = `Crawl Status:
 Status: ${response.status}
 Progress: ${response.completed}/${response.total}
 Credits Used: ${response.creditsUsed}
@@ -1189,441 +1119,193 @@ Expires At: ${response.expiresAt}
 ${
   response.data.length > 0 ? '\nResults:\n' + formatResults(response.data) : ''
 }`;
-        return {
-          content: [{ type: 'text', text: trimResponseText(status) }],
-          isError: false,
-        };
-      }
-
-      case 'firecrawl_search': {
-        if (!isSearchOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_search');
-        }
-        try {
-          const response = await withRetry(
-            async () =>
-              client.search(args.query, {
-                ...args,
-                // @ts-expect-error Extended API options including origin
-                origin: 'mcp-server',
-              }),
-            'search operation'
-          );
-
           return {
-            content: [
-              {
-                type: 'text',
-                text: trimResponseText(JSON.stringify(response, null, 2)),
-              },
-            ],
+            content: [{ type: 'text', text: trimResponseText(status) }],
             isError: false,
           };
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : `Search failed: ${JSON.stringify(error)}`;
-          return {
-            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
-            isError: true,
-          };
-        }
-      }
-
-      case 'firecrawl_extract': {
-        if (!isExtractOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_extract');
         }
 
-        try {
-          const extractStartTime = Date.now();
-
-          safeLog(
-            'info',
-            `Starting extraction for URLs: ${args.urls.join(', ')}`
-          );
-
-          // Log if using self-hosted instance
-          if (FIRECRAWL_API_URL) {
-            safeLog('info', 'Using self-hosted instance for extraction');
+        case 'firecrawl_search': {
+          if (!isSearchOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_search');
           }
-
-          const extractResponse = await withRetry(
-            async () =>
-              client.extract({
-                urls: args.urls,
-                prompt: args.prompt,
-                schema: args.schema,
-                allowExternalLinks: args.allowExternalLinks,
-                enableWebSearch: args.enableWebSearch,
-                includeSubdomains: args.includeSubdomains,
-                origin: 'mcp-server',
-              } as ExtractParams),
-            'extract operation'
-          );
-
-          // Type guard for successful response
-          if (!('success' in extractResponse) || !extractResponse.success) {
-            throw new Error(extractResponse.error || 'Extraction failed');
-          }
-
-          const response = extractResponse as ExtractResponse;
-
-          // Log performance metrics
-          safeLog(
-            'info',
-            `Extraction completed in ${Date.now() - extractStartTime}ms`
-          );
-
-          // Add warning to response if present
-          const result = {
-            content: [
-              {
-                type: 'text',
-                text: trimResponseText(JSON.stringify(response.data, null, 2)),
-              },
-            ],
-            isError: false,
-          };
-
-          if (response.warning) {
-            safeLog('warning', response.warning);
-          }
-
-          return result;
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-
-          // Special handling for self-hosted instance errors
-          if (
-            FIRECRAWL_API_URL &&
-            errorMessage.toLowerCase().includes('not supported')
-          ) {
-            safeLog(
-              'error',
-              'Extraction is not supported by this self-hosted instance'
+          try {
+            const response = await withRetry(
+              async () =>
+                client.search(args.query, {
+                  ...args,
+                  // @ts-expect-error Extended API options including origin
+                  origin: 'mcp-server',
+                }),
+              'search operation'
             );
+
             return {
               content: [
                 {
                   type: 'text',
-                  text: trimResponseText(
-                    'Extraction is not supported by this self-hosted instance. Please ensure LLM support is configured.'
-                  ),
+                  text: trimResponseText(JSON.stringify(response, null, 2)),
                 },
               ],
+              isError: false,
+            };
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error
+                ? error.message
+                : `Search failed: ${JSON.stringify(error)}`;
+            return {
+              content: [{ type: 'text', text: trimResponseText(errorMessage) }],
               isError: true,
             };
           }
+        }
 
+        case 'firecrawl_extract': {
+          if (!isExtractOptions(args)) {
+            throw new Error('Invalid arguments for firecrawl_extract');
+          }
+
+          try {
+            const extractStartTime = Date.now();
+
+            safeLog(
+              'info',
+              `Starting extraction for URLs: ${args.urls.join(', ')}`
+            );
+
+            // Log if using self-hosted instance
+            if (FIRECRAWL_API_URL) {
+              safeLog('info', 'Using self-hosted instance for extraction');
+            }
+
+            const extractResponse = await withRetry(
+              async () =>
+                client.extract({
+                  urls: args.urls,
+                  prompt: args.prompt,
+                  schema: args.schema,
+                  allowExternalLinks: args.allowExternalLinks,
+                  enableWebSearch: args.enableWebSearch,
+                  includeSubdomains: args.includeSubdomains,
+                  origin: 'mcp-server',
+                } as ExtractParams),
+              'extract operation'
+            );
+
+            // Type guard for successful response
+            if (!('success' in extractResponse) || !extractResponse.success) {
+              throw new Error(extractResponse.error || 'Extraction failed');
+            }
+
+            const response = extractResponse as ExtractResponse;
+
+            // Log performance metrics
+            safeLog(
+              'info',
+              `Extraction completed in ${Date.now() - extractStartTime}ms`
+            );
+
+            // Add warning to response if present
+            const result = {
+              content: [
+                {
+                  type: 'text',
+                  text: trimResponseText(JSON.stringify(response.data, null, 2)),
+                },
+              ],
+              isError: false,
+            };
+
+            if (response.warning) {
+              safeLog('warning', response.warning);
+            }
+
+            return result;
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+
+            // Special handling for self-hosted instance errors
+            if (
+              FIRECRAWL_API_URL &&
+              errorMessage.toLowerCase().includes('not supported')
+            ) {
+              safeLog(
+                'error',
+                'Extraction is not supported by this self-hosted instance'
+              );
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: trimResponseText(
+                      'Extraction is not supported by this self-hosted instance. Please ensure LLM support is configured.'
+                    ),
+                  },
+                ],
+                isError: true,
+              };
+            }
+
+            return {
+              content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+              isError: true,
+            };
+          }
+        }
+
+        default:
           return {
-            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
+            content: [
+              { type: 'text', text: trimResponseText(`Unknown tool: ${name}`) },
+            ],
             isError: true,
           };
-        }
       }
-
-      default:
-        return {
-          content: [
-            { type: 'text', text: trimResponseText(`Unknown tool: ${name}`) },
-          ],
-          isError: true,
-        };
-    }
-  } catch (error) {
-    // Log detailed error information
-    safeLog('error', {
-      message: `Request failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      tool: request.params.name,
-      arguments: request.params.arguments,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    });
-    return {
-      content: [
-        {
-          type: 'text',
-          text: trimResponseText(
-            `Error: ${error instanceof Error ? error.message : String(error)}`
-          ),
-        },
-      ],
-      isError: true,
-    };
-  } finally {
-    // Log request completion with performance metrics
-    safeLog('info', `Request completed in ${Date.now() - startTime}ms`);
-  }
-});
-
-// Helper function to format results
-function formatResults(data: Document[]): string {
-  return data
-    .map((doc) => {
-      const content = doc.markdown || doc.html || doc.rawHtml || 'No content';
-      return `Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}
-${doc.metadata?.title ? `Title: ${doc.metadata.title}` : ''}`;
-    })
-    .join('\n\n');
-}
-
-// Utility function to trim trailing whitespace from text responses
-// This prevents Claude API errors with "final assistant content cannot end with trailing whitespace"
-function trimResponseText(text: string): string {
-  return text.trim();
-}
-
-// Server startup
-async function runLocalServer() {
-  try {
-    console.error('Initializing Firecrawl MCP Server...');
-
-    const transport = new StdioServerTransport();
-
-    // Detect if we're using stdio transport
-    isStdioTransport = transport instanceof StdioServerTransport;
-    if (isStdioTransport) {
-      console.error(
-        'Running in stdio mode, logging will be directed to stderr'
-      );
-    }
-
-    await server.connect(transport);
-
-    // Now that we're connected, we can send logging messages
-    safeLog('info', 'Firecrawl MCP Server initialized successfully');
-    safeLog(
-      'info',
-      `Configuration: API URL: ${FIRECRAWL_API_URL || 'default'}`
-    );
-
-    console.error('Firecrawl MCP Server running on stdio');
-  } catch (error) {
-    console.error('Fatal error running server:', error);
-    process.exit(1);
-  }
-}
-async function runSSELocalServer() {
-  let transport: SSEServerTransport | null = null;
-  const app = express();
-
-  app.get('/sse', async (req, res) => {
-    transport = new SSEServerTransport(`/messages`, res);
-    res.on('close', () => {
-      transport = null;
-    });
-    await server.connect(transport);
-  });
-
-  // Endpoint for the client to POST messages
-  // Remove express.json() middleware - let the transport handle the body
-  app.post('/messages', (req, res) => {
-    if (transport) {
-      transport.handlePostMessage(req, res);
-    }
-  });
-
-  const PORT = process.env.PORT || 3000;
-  console.log('Starting server on port', PORT);
-  try {
-    app.listen(PORT, () => {
-      console.log(`MCP SSE Server listening on http://localhost:${PORT}`);
-      console.log(`SSE endpoint: http://localhost:${PORT}/sse`);
-      console.log(`Message endpoint: http://localhost:${PORT}/messages`);
-    });
-  } catch (error) {
-    console.error('Error starting server:', error);
-  }
-}
-async function runHTTPStreamableServer() {
-  const app = express();
-  app.use(express.json());
-
-  const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
-
-  // A single endpoint handles all MCP requests.
-  app.all('/mcp', async (req: Request, res: Response) => {
-    try {
-      const sessionId = req.headers['mcp-session-id'] as string | undefined;
-      let transport: StreamableHTTPServerTransport;
-
-      if (sessionId && transports[sessionId]) {
-        transport = transports[sessionId];
-      } else if (
-        !sessionId &&
-        req.method === 'POST' &&
-        req.body &&
-        typeof req.body === 'object' &&
-        (req.body as any).method === 'initialize'
-      ) {
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => {
-            const id = randomUUID();
-            return id;
-          },
-          onsessioninitialized: (sid: string) => {
-            transports[sid] = transport;
-          },
-        });
-
-        transport.onclose = () => {
-          const sid = transport.sessionId;
-          if (sid && transports[sid]) {
-            delete transports[sid];
-          }
-        };
-        console.log('Creating server instance');
-        console.log('Connecting transport to server');
-        await server.connect(transport);
-
-        await transport.handleRequest(req, res, req.body);
-        return;
-      } else {
-        res.status(400).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32000,
-            message: 'Invalid or missing session ID',
-          },
-          id: null,
-        });
-        return;
-      }
-
-      await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32603,
-            message: 'Internal server error',
+      // Log detailed error information
+      safeLog('error', {
+        message: `Request failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        tool: request.params.name,
+        arguments: request.params.arguments,
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime,
+      });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: trimResponseText(
+              `Error: ${error instanceof Error ? error.message : String(error)}`
+            ),
           },
-          id: null,
-        });
-      }
-    }
-  });
-
-  const PORT = 3000;
-  const appServer = app.listen(PORT, () => {
-    console.log(`MCP Streamable HTTP Server listening on port ${PORT}`);
-  });
-
-  process.on('SIGINT', async () => {
-    console.log('Shutting down server...');
-    for (const sessionId in transports) {
-      try {
-        console.log(`Closing transport for session ${sessionId}`);
-        await transports[sessionId].close();
-        delete transports[sessionId];
-      } catch (error) {
-        console.error(
-          `Error closing transport for session ${sessionId}:`,
-          error
-        );
-      }
-    }
-    appServer.close(() => {
-      console.log('Server shutdown complete');
-      process.exit(0);
-    });
-  });
-}
-async function runSSECloudServer() {
-  const transports: { [sessionId: string]: SSEServerTransport } = {};
-  const app = express();
-
-  app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-  });
-
-  app.get('/:apiKey/sse', async (req, res) => {
-    const apiKey = req.params.apiKey;
-    const transport = new SSEServerTransport(`/${apiKey}/messages`, res);
-
-    //todo: validate api key, close if invalid
-    const compositeKey = `${apiKey}-${transport.sessionId}`;
-    transports[compositeKey] = transport;
-    res.on('close', () => {
-      delete transports[compositeKey];
-    });
-    await server.connect(transport);
-  });
-
-  // Endpoint for the client to POST messages
-  // Remove express.json() middleware - let the transport handle the body
-  app.post(
-    '/:apiKey/messages',
-    express.json(),
-    async (req: Request, res: Response) => {
-      const apiKey = req.params.apiKey;
-      const body = req.body;
-      const enrichedBody = {
-        ...body,
+        ],
+        isError: true,
       };
-
-      if (enrichedBody && enrichedBody.params && !enrichedBody.params._meta) {
-        enrichedBody.params._meta = { apiKey };
-      } else if (
-        enrichedBody &&
-        enrichedBody.params &&
-        enrichedBody.params._meta
-      ) {
-        enrichedBody.params._meta.apiKey = apiKey;
-      }
-
-      console.log('enrichedBody', enrichedBody);
-
-      const sessionId = req.query.sessionId as string;
-      const compositeKey = `${apiKey}-${sessionId}`;
-      const transport = transports[compositeKey];
-      if (transport) {
-        await transport.handlePostMessage(req, res, enrichedBody);
-      } else {
-        res.status(400).send('No transport found for sessionId');
-      }
+    } finally {
+      // Log request completion with performance metrics
+      safeLog('info', `Request completed in ${Date.now() - startTime}ms`);
     }
-  );
+  });
 
-  const PORT = 3000;
-  app.listen(PORT, () => {
-    console.log(`MCP SSE Server listening on http://localhost:${PORT}`);
-    console.log(`SSE endpoint: http://localhost:${PORT}/sse`);
-    console.log(`Message endpoint: http://localhost:${PORT}/messages`);
-  });
-}
+  // Helper function to format results
+  function formatResults(data: Document[]): string {
+    return data
+      .map((doc) => {
+        const content = doc.markdown || doc.html || doc.rawHtml || 'No content';
+        return `Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}
+${doc.metadata?.title ? `Title: ${doc.metadata.title}` : ''}`;
+      })
+      .join('\n\n');
+  }
 
-if (process.env.CLOUD_SERVICE === 'true') {
-  // Use versioned server for cloud service
-  import('./versioned-server.js').then(({ runVersionedSSECloudServer }) => {
-    runVersionedSSECloudServer().catch((error: any) => {
-      console.error('Fatal error running versioned server:', error);
-      process.exit(1);
-    });
-  }).catch((error: any) => {
-    console.error('Fatal error importing versioned server:', error);
-    process.exit(1);
-  });
-} else if (process.env.SSE_LOCAL === 'true') {
-  runSSELocalServer().catch((error: any) => {
-    console.error('Fatal error running server:', error);
-    process.exit(1);
-  });
-} else if (process.env.HTTP_STREAMABLE_SERVER === 'true') {
-  console.log('Running HTTP Streamable Server');
-  runHTTPStreamableServer().catch((error: any) => {
-    console.error('Fatal error running server:', error);
-    process.exit(1);
-  });
-} else {
-  runLocalServer().catch((error: any) => {
-    console.error('Fatal error running server:', error);
-    process.exit(1);
-  });
+  // Utility function to trim trailing whitespace from text responses
+  function trimResponseText(text: string): string {
+    return text.trim();
+  }
+
+  return server;
 }
