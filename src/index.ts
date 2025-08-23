@@ -1328,60 +1328,6 @@ ${
         }
       }
 
-      case 'firecrawl_generate_llmstxt': {
-        if (!isGenerateLLMsTextOptions(args)) {
-          throw new Error('Invalid arguments for firecrawl_generate_llmstxt');
-        }
-
-        try {
-          const { url, ...params } = args;
-          const generateStartTime = Date.now();
-
-          safeLog('info', `Starting LLMs.txt generation for URL: ${url}`);
-
-          // Start the generation process
-          const response = await withRetry(
-            async () =>
-              // @ts-expect-error Extended API options including origin
-              client.generateLLMsText(url, { ...params, origin: 'mcp-server' }),
-            'LLMs.txt generation'
-          );
-
-          if (!response.success) {
-            throw new Error(response.error || 'LLMs.txt generation failed');
-          }
-
-          // Log performance metrics
-          safeLog(
-            'info',
-            `LLMs.txt generation completed in ${Date.now() - generateStartTime}ms`
-          );
-
-          // Format the response
-          let resultText = '';
-
-          if ('data' in response) {
-            resultText = `LLMs.txt content:\n\n${response.data.llmstxt}`;
-
-            if (args.showFullText && response.data.llmsfulltxt) {
-              resultText += `\n\nLLMs-full.txt content:\n\n${response.data.llmsfulltxt}`;
-            }
-          }
-
-          return {
-            content: [{ type: 'text', text: trimResponseText(resultText) }],
-            isError: false,
-          };
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          return {
-            content: [{ type: 'text', text: trimResponseText(errorMessage) }],
-            isError: true,
-          };
-        }
-      }
-
       default:
         return {
           content: [
