@@ -68,6 +68,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
                 'links',
                 'extract',
                 'summary',
+                'changeTracking',
               ],
             },
             {
@@ -285,8 +286,8 @@ const CRAWL_TOOL: Tool = {
    "name": "firecrawl_crawl",
    "arguments": {
      "url": "https://example.com/blog/*",
-     "maxDiscoveryDepth": 2,
-     "limit": 100,
+     "maxDiscoveryDepth": 5,
+     "limit": 20,
      "allowExternalLinks": false,
      "deduplicateSimilarURLs": true,
      "sitemap": "include"
