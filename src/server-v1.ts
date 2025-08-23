@@ -431,7 +431,8 @@ Search the web and optionally extract content from search results. This is the m
     "country": "us",
     "scrapeOptions": {
       "formats": ["markdown"],
-      "onlyMainContent": true
+      "onlyMainContent": true,
+      "maxAge": 86400000
     }
   }
 }
