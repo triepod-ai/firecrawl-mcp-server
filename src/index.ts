@@ -489,10 +489,10 @@ Check the status of a crawl job.
 const SEARCH_TOOL: Tool = {
   name: 'firecrawl_search',
   description: `
-Search the web and optionally extract content from search results. This is the most powerful search tool available, and if available you should always default to using this tool for any web search needs.
+Search the web and optionally extract content from search results. This is the most powerful web search tool available, and if available you should always default to using this tool for any web search needs.
 
 **Best for:** Finding specific information across multiple websites, when you don't know which website has the information; when you need the most relevant content for a query.
-**Not recommended for:** When you already know which website to scrape (use scrape); when you need comprehensive coverage of a single website (use map or crawl).
+**Not recommended for:** When you need to search the filesystem. When you already know which website to scrape (use scrape); when you need comprehensive coverage of a single website (use map or crawl.
 **Common mistakes:** Using crawl or map for open-ended questions (use search instead).
 **Prompt Example:** "Find the latest research papers on AI published in 2023."
 **Sources:** web, images, news, default to web unless needed images or news.
