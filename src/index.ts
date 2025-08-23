@@ -635,7 +635,6 @@ Extract structured information from web pages using LLM capabilities. Supports b
 **Arguments:**
 - urls: Array of URLs to extract information from
 - prompt: Custom prompt for the LLM extraction
-- systemPrompt: System prompt to guide the LLM
 - schema: JSON schema for structured data extraction
 - allowExternalLinks: Allow extraction from external links
 - enableWebSearch: Enable web search for additional context
@@ -648,7 +647,6 @@ Extract structured information from web pages using LLM capabilities. Supports b
   "arguments": {
     "urls": ["https://example.com/page1", "https://example.com/page2"],
     "prompt": "Extract product information including name, price, and description",
-    "systemPrompt": "You are a helpful assistant that extracts product information",
     "schema": {
       "type": "object",
       "properties": {
@@ -677,10 +675,6 @@ Extract structured information from web pages using LLM capabilities. Supports b
       prompt: {
         type: 'string',
         description: 'Prompt for the LLM extraction',
-      },
-      systemPrompt: {
-        type: 'string',
-        description: 'System prompt for LLM extraction',
       },
       schema: {
         type: 'object',
@@ -786,7 +780,6 @@ interface SearchOptions {
 // Add after other interfaces
 interface ExtractParams<T = any> {
   prompt?: string;
-  systemPrompt?: string;
   schema?: T | object;
   allowExternalLinks?: boolean;
   enableWebSearch?: boolean;
@@ -797,7 +790,6 @@ interface ExtractParams<T = any> {
 interface ExtractArgs {
   urls: string[];
   prompt?: string;
-  systemPrompt?: string;
   schema?: object;
   allowExternalLinks?: boolean;
   enableWebSearch?: boolean;
@@ -1264,7 +1256,6 @@ ${
               client.extract({
                 urls: args.urls,
                 prompt: args.prompt,
-                systemPrompt: args.systemPrompt,
                 schema: args.schema,
                 allowExternalLinks: args.allowExternalLinks,
                 enableWebSearch: args.enableWebSearch,
