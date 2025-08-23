@@ -1,6 +1,6 @@
 {
   "name": "firecrawl-mcp",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "MCP server for Firecrawl web scraping integration. Supports both cloud and self-hosted instances. Features include web scraping, search, batch processing, structured data extraction, and LLM-powered content analysis.",
   "type": "module",
   "bin": {
@@ -15,7 +15,9 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:endpoints": "node test-endpoints.js",
     "start": "node dist/index.js",
+    "start:cloud": "CLOUD_SERVICE=true node dist/index.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write .",
@@ -29,6 +31,8 @@
     "@modelcontextprotocol/sdk": "^1.17.3",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
+    "firecrawl-js-current": "npm:@mendable/firecrawl-js@^3.1.0",
+    "firecrawl-js-legacy": "npm:@mendable/firecrawl-js@^1.29.3",
     "shx": "^0.3.4",
     "typescript": "^5.9.2",
     "ws": "^8.18.1"
