@@ -1,16 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import FirecrawlApp from '@mendable/firecrawl-js';
-import type {
-  SearchResponse,
-  BatchScrapeResponse,
-  BatchScrapeStatusResponse,
-  CrawlResponse,
-  CrawlStatusResponse,
-  ScrapeResponse,
-  FirecrawlDocument,
-  SearchParams,
-} from '@mendable/firecrawl-js';
 import {
   describe,
   expect,
@@ -67,16 +57,16 @@ interface CrawlArgs {
 
 // Mock client interface
 interface MockFirecrawlClient {
-  scrapeUrl(url: string, options?: any): Promise<ScrapeResponse>;
-  search(query: string, params?: SearchParams): Promise<SearchResponse>;
+  scrape(url: string, options?: any): Promise<any>;
+  search(query: string, params?: any): Promise<any>;
   asyncBatchScrapeUrls(
     urls: string[],
     options?: any
-  ): Promise<BatchScrapeResponse>;
-  checkBatchScrapeStatus(id: string): Promise<BatchScrapeStatusResponse>;
-  asyncCrawlUrl(url: string, options?: any): Promise<CrawlResponse>;
-  checkCrawlStatus(id: string): Promise<CrawlStatusResponse>;
-  mapUrl(url: string, options?: any): Promise<{ links: string[] }>;
+  ): Promise<any>;
+  checkBatchScrapeStatus(id: string): Promise<any>;
+  crawl(url: string, options?: any): Promise<any>;
+  getCrawlStatus(id: string): Promise<any>;
+  map(url: string, options?: any): Promise<{ links: string[] }>;
 }
 
 describe('Firecrawl Tool Tests', () => {
@@ -110,16 +100,14 @@ describe('Firecrawl Tool Tests', () => {
     const url = 'https://example.com';
     const options = { formats: ['markdown'] };
 
-    const mockResponse: ScrapeResponse = {
-      success: true,
+    const mockResponse = {
       markdown: '# Test Content',
       html: undefined,
       rawHtml: undefined,
       url: 'https://example.com',
-      actions: undefined as never,
     };
 
-    mockClient.scrapeUrl.mockResolvedValueOnce(mockResponse);
+    mockClient.scrape.mockResolvedValueOnce(mockResponse);
 
     const response = await requestHandler({
       method: 'call_tool',
@@ -133,7 +121,7 @@ describe('Firecrawl Tool Tests', () => {
       content: [{ type: 'text', text: '# Test Content' }],
       isError: false,
     });
-    expect(mockClient.scrapeUrl).toHaveBeenCalledWith(url, {
+    expect(mockClient.scrape).toHaveBeenCalledWith(url, {
       formats: ['markdown'],
       url,
     });
@@ -144,16 +132,14 @@ describe('Firecrawl Tool Tests', () => {
     const url = 'https://example.com';
     const options = { formats: ['markdown'], maxAge: 3600000 };
 
-    const mockResponse: ScrapeResponse = {
-      success: true,
+    const mockResponse = {
       markdown: '# Test Content',
       html: undefined,
       rawHtml: undefined,
       url: 'https://example.com',
-      actions: undefined as never,
     };
 
-    mockClient.scrapeUrl.mockResolvedValueOnce(mockResponse);
+    mockClient.scrape.mockResolvedValueOnce(mockResponse);
 
     const response = await requestHandler({
       method: 'call_tool',
@@ -167,7 +153,7 @@ describe('Firecrawl Tool Tests', () => {
       content: [{ type: 'text', text: '# Test Content' }],
       isError: false,
     });
-    expect(mockClient.scrapeUrl).toHaveBeenCalledWith(url, {
+    expect(mockClient.scrape).toHaveBeenCalledWith(url, {
       formats: ['markdown'],
       maxAge: 3600000,
       url,
@@ -203,15 +189,13 @@ describe('Firecrawl Tool Tests', () => {
     const query = 'test query';
     const scrapeOptions = { formats: ['markdown'] };
 
-    const mockSearchResponse: SearchResponse = {
-      success: true,
+    const mockSearchResponse = {
       data: [
         {
           url: 'https://example.com',
           title: 'Test Page',
           description: 'Test Description',
           markdown: '# Test Content',
-          actions: undefined as never,
         },
       ],
     };
@@ -236,8 +220,7 @@ describe('Firecrawl Tool Tests', () => {
     const url = 'https://example.com';
     const options = { maxDepth: 2 };
 
-    mockClient.asyncCrawlUrl.mockResolvedValueOnce({
-      success: true,
+    mockClient.crawl.mockResolvedValueOnce({
       id: 'test-crawl-id',
     });
 
@@ -251,7 +234,7 @@ describe('Firecrawl Tool Tests', () => {
 
     expect(response.isError).toBe(false);
     expect(response.content[0].text).toContain('test-crawl-id');
-    expect(mockClient.asyncCrawlUrl).toHaveBeenCalledWith(url, {
+    expect(mockClient.crawl).toHaveBeenCalledWith(url, {
       maxDepth: 2,
       url,
     });
@@ -261,7 +244,7 @@ describe('Firecrawl Tool Tests', () => {
   test('should handle API errors', async () => {
     const url = 'https://example.com';
 
-    mockClient.scrapeUrl.mockRejectedValueOnce(new Error('API Error'));
+    mockClient.scrape.mockRejectedValueOnce(new Error('API Error'));
 
     const response = await requestHandler({
       method: 'call_tool',
@@ -280,7 +263,7 @@ describe('Firecrawl Tool Tests', () => {
     const url = 'https://example.com';
 
     // Mock rate limit error
-    mockClient.scrapeUrl.mockRejectedValueOnce(
+    mockClient.scrape.mockRejectedValueOnce(
       new Error('rate limit exceeded')
     );
 
@@ -306,10 +289,7 @@ async function handleRequest(
   try {
     switch (name) {
       case 'firecrawl_scrape': {
-        const response = await client.scrapeUrl(args.url, args);
-        if (!response.success) {
-          throw new Error(response.error || 'Scraping failed');
-        }
+        const response = await client.scrape(args.url, args);
         return {
           content: [
             { type: 'text', text: response.markdown || 'No content available' },
@@ -336,12 +316,9 @@ async function handleRequest(
 
       case 'firecrawl_search': {
         const response = await client.search(args.query, args.scrapeOptions);
-        if (!response.success) {
-          throw new Error(response.error || 'Search failed');
-        }
         const results = response.data
           .map(
-            (result) =>
+            (result: any) =>
               `URL: ${result.url}\nTitle: ${
                 result.title || 'No title'
               }\nDescription: ${result.description || 'No description'}\n${
@@ -356,10 +333,7 @@ async function handleRequest(
       }
 
       case 'firecrawl_crawl': {
-        const response = await client.asyncCrawlUrl(args.url, args);
-        if (!response.success) {
-          throw new Error(response.error);
-        }
+        const response = await client.crawl(args.url, args);
         return {
           content: [
             {

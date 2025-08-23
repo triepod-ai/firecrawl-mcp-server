@@ -8,12 +8,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import FirecrawlApp, {
-  type ScrapeParams,
-  type MapParams,
-  type CrawlParams,
-  type FirecrawlDocument,
-} from '@mendable/firecrawl-js';
+import FirecrawlApp from '@mendable/firecrawl-js';
 
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
@@ -749,16 +744,6 @@ interface SearchOptions {
   };
 }
 
-// Add after other interfaces
-interface ExtractParams<T = any> {
-  prompt?: string;
-  systemPrompt?: string;
-  schema?: T | object;
-  allowExternalLinks?: boolean;
-  enableWebSearch?: boolean;
-  includeSubdomains?: boolean;
-  origin?: string;
-}
 
 interface ExtractArgs {
   urls: string[];
@@ -782,7 +767,7 @@ interface ExtractResponse<T = any> {
 // Type guards
 function isScrapeOptions(
   args: unknown
-): args is ScrapeParams & { url: string } {
+): args is { url: string } & Record<string, any> {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -791,7 +776,7 @@ function isScrapeOptions(
   );
 }
 
-function isMapOptions(args: unknown): args is MapParams & { url: string } {
+function isMapOptions(args: unknown): args is { url: string } & Record<string, any> {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -800,7 +785,7 @@ function isMapOptions(args: unknown): args is MapParams & { url: string } {
   );
 }
 
-function isCrawlOptions(args: unknown): args is CrawlParams & { url: string } {
+function isCrawlOptions(args: unknown): args is { url: string } & Record<string, any> {
   return (
     typeof args === 'object' &&
     args !== null &&
@@ -1011,11 +996,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             `Starting scrape for URL: ${url} with options: ${JSON.stringify(options)}`
           );
 
-          const response = await client.scrapeUrl(url, {
-            ...options,
-            // @ts-expect-error Extended API options including origin
-            origin: 'mcp-server',
-          });
+          const response = await client.scrape(url, options);
 
           // Log performance metrics
           safeLog(
@@ -1023,9 +1004,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             `Scrape completed in ${Date.now() - scrapeStartTime}ms`
           );
 
-          if ('success' in response && !response.success) {
-            throw new Error(response.error || 'Scraping failed');
-          }
 
           // Format content based on requested formats
           const contentParts = [];
@@ -1045,8 +1023,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (options.formats?.includes('screenshot') && response.screenshot) {
             contentParts.push(response.screenshot);
           }
-          if (options.formats?.includes('extract') && response.extract) {
-            contentParts.push(JSON.stringify(response.extract, null, 2));
+          if (options.formats?.includes('extract') && response.json) {
+            contentParts.push(JSON.stringify(response.json, null, 2));
           }
 
           // If options.formats is empty, default to markdown
@@ -1085,14 +1063,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error('Invalid arguments for firecrawl_map');
         }
         const { url, ...options } = args;
-        const response = await client.mapUrl(url, {
-          ...options,
-          // @ts-expect-error Extended API options including origin
-          origin: 'mcp-server',
-        });
-        if ('error' in response) {
-          throw new Error(response.error);
-        }
+        const response = await client.map(url, options);
         if (!response.links) {
           throw new Error('No links received from Firecrawl API');
         }
@@ -1111,21 +1082,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { url, ...options } = args;
         const response = await withRetry(
           async () =>
-            // @ts-expect-error Extended API options including origin
-            client.asyncCrawlUrl(url, { ...options, origin: 'mcp-server' }),
+            client.crawl(url, options),
           'crawl operation'
         );
-
-        if (!response.success) {
-          throw new Error(response.error);
-        }
 
         return {
           content: [
             {
               type: 'text',
               text: trimResponseText(
-                `Started crawl for ${url} with job ID: ${response.id}. Use firecrawl_check_crawl_status to check progress.`
+                `Started crawl for ${url} with job ID: ${(response as any).jobId || (response as any).id || 'unknown'}. Use firecrawl_check_crawl_status to check progress.`
               ),
             },
           ],
@@ -1137,10 +1103,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!isStatusCheckOptions(args)) {
           throw new Error('Invalid arguments for firecrawl_check_crawl_status');
         }
-        const response = await client.checkCrawlStatus(args.id);
-        if (!response.success) {
-          throw new Error(response.error);
-        }
+        const response = await client.getCrawlStatus(args.id);
         const status = `Crawl Status:
 Status: ${response.status}
 Progress: ${response.completed}/${response.total}
@@ -1162,20 +1125,14 @@ ${
         try {
           const response = await withRetry(
             async () =>
-              client.search(args.query, { ...args, origin: 'mcp-server' }),
+              client.search(args.query, { sources: (args as any).sources || ['web'] }),
             'search operation'
           );
 
-          if (!response.success) {
-            throw new Error(
-              `Search failed: ${response.error || 'Unknown error'}`
-            );
-          }
-
-          // Format the results
-          const results = response.data
+          // Format the results - response.data contains the array of results
+          const results = (response as any).data
             .map(
-              (result) =>
+              (result: any) =>
                 `URL: ${result.url}
 Title: ${result.title || 'No title'}
 Description: ${result.description || 'No description'}
@@ -1219,15 +1176,7 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 
           const extractResponse = await withRetry(
             async () =>
-              client.extract(args.urls, {
-                prompt: args.prompt,
-                systemPrompt: args.systemPrompt,
-                schema: args.schema,
-                allowExternalLinks: args.allowExternalLinks,
-                enableWebSearch: args.enableWebSearch,
-                includeSubdomains: args.includeSubdomains,
-                origin: 'mcp-server',
-              } as ExtractParams),
+              client.extract({ urls: args.urls, prompt: args.prompt }),
             'extract operation'
           );
 
@@ -1302,7 +1251,7 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
           const researchStartTime = Date.now();
           safeLog('info', `Starting deep research for query: ${args.query}`);
 
-          const response = await client.deepResearch(
+          const response = await client.v1.deepResearch(
             args.query as string,
             {
               maxDepth: args.maxDepth as number,
@@ -1454,7 +1403,7 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
 });
 
 // Helper function to format results
-function formatResults(data: FirecrawlDocument[]): string {
+function formatResults(data: any[]): string {
   return data
     .map((doc) => {
       const content = doc.markdown || doc.html || doc.rawHtml || 'No content';

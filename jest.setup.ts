@@ -1,36 +1,26 @@
 import { jest } from '@jest/globals';
 import FirecrawlApp from '@mendable/firecrawl-js';
-import type {
-  SearchResponse,
-  BatchScrapeResponse,
-  BatchScrapeStatusResponse,
-  FirecrawlDocument,
-} from '@mendable/firecrawl-js';
 
 // Set test timeout
 jest.setTimeout(30000);
 
 // Create mock responses
-const mockSearchResponse: SearchResponse = {
-  success: true,
+const mockSearchResponse = {
   data: [
     {
       url: 'https://example.com',
       title: 'Test Page',
       description: 'Test Description',
       markdown: '# Test Content',
-      actions: null as never,
     },
-  ] as FirecrawlDocument<undefined, never>[],
+  ],
 };
 
-const mockBatchScrapeResponse: BatchScrapeResponse = {
-  success: true,
+const mockBatchScrapeResponse = {
   id: 'test-batch-id',
 };
 
-const mockBatchStatusResponse: BatchScrapeStatusResponse = {
-  success: true,
+const mockBatchStatusResponse = {
   status: 'completed',
   completed: 1,
   total: 1,
@@ -42,9 +32,8 @@ const mockBatchStatusResponse: BatchScrapeStatusResponse = {
       title: 'Test Page',
       description: 'Test Description',
       markdown: '# Test Content',
-      actions: null as never,
     },
-  ] as FirecrawlDocument<undefined, never>[],
+  ],
 };
 
 // Create mock instance methods
