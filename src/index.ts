@@ -902,13 +902,13 @@ const server = new Server(
 const FIRECRAWL_API_URL = process.env.FIRECRAWL_API_URL;
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
-// Check if API key is required (only for cloud service)
+// Check if API key is required (not needed for cloud service)
 if (
-  process.env.CLOUD_SERVICE === 'true' &&
+  process.env.CLOUD_SERVICE !== 'true' &&
   !FIRECRAWL_API_KEY
 ) {
   console.error(
-    'Error: FIRECRAWL_API_KEY environment variable is required when CLOUD_SERVICE=true'
+    'Error: FIRECRAWL_API_KEY environment variable is required'
   );
   process.exit(1);
 }
