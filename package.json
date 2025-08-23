@@ -1,6 +1,6 @@
 {
   "name": "firecrawl-mcp",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MCP server for Firecrawl web scraping integration. Supports both cloud and self-hosted instances. Features include web scraping, batch processing, structured data extraction, and LLM-powered content analysis.",
   "type": "module",
   "bin": {
@@ -20,7 +20,8 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write .",
     "prepare": "npm run build",
-    "publish": "npm run build && npm publish"
+    "publish": "npm run build && npm publish",
+    "publish-beta": "npm run build && npm publish --tag beta"
   },
   "license": "MIT",
   "dependencies": {

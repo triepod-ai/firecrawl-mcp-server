@@ -277,7 +277,7 @@ const CRAWL_TOOL: Tool = {
  **Best for:** Extracting content from multiple related pages, when you need comprehensive coverage.
  **Not recommended for:** Extracting content from a single page (use scrape); when token limits are a concern (use map + batch_scrape); when you need fast results (crawling can be slow).
  **Warning:** Crawl responses can be very large and may exceed token limits. Limit the crawl depth and number of pages, or use map + batch_scrape for better control.
- **Common mistakes:** Setting limit or maxDiscoveryDepth too high (causes token overflow); using crawl for a single page (use scrape instead).
+ **Common mistakes:** Setting limit or maxDiscoveryDepth too high (causes token overflow) or too low (causes missing pages); using crawl for a single page (use scrape instead). Using a /* wildcard is not recommended.
  **Prompt Example:** "Get all blog posts from the first two levels of example.com/blog."
  **Usage Example:**
  \`\`\`json
@@ -552,15 +552,15 @@ Search the web and optionally extract content from search results. This is the m
               type: 'object',
               properties: {
                 type: { type: 'string', enum: ['web'] },
-                tbs: {
-                  type: 'string',
-                  description:
-                    'Time-based search parameter (e.g., qdr:h, qdr:d, qdr:w, qdr:m, qdr:y or custom cdr with cd_min/cd_max)',
-                },
-                location: {
-                  type: 'string',
-                  description: 'Location parameter for search results',
-                },
+                // tbs: {
+                //   type: 'string',
+                //   description:
+                //     'Time-based search parameter (e.g., qdr:h, qdr:d, qdr:w, qdr:m, qdr:y or custom cdr with cd_min/cd_max)',
+                // },
+                // location: {
+                //   type: 'string',
+                //   description: 'Location parameter for search results',
+                // },
               },
               required: ['type'],
               additionalProperties: false,
