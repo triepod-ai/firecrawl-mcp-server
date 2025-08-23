@@ -112,10 +112,31 @@ export async function runVersionedSSECloudServer() {
 
       console.log(`[V1] Message received for API key: ${apiKey}`);
 
-      const sessionId = req.query.sessionId as string;
-      const compositeKey = `${apiKey}-${sessionId}`;
-      const versionedTransport = transports[compositeKey];
-      
+      // Prefer explicit sessionId from query, then common header names
+      const rawSessionId =
+        (req.query.sessionId as string) ||
+        (req.headers['mcp-session-id'] as string) ||
+        (req.headers['x-mcp-session-id'] as string) ||
+        '';
+
+      let compositeKey = `${apiKey}-${rawSessionId}`;
+      let versionedTransport = transports[compositeKey];
+
+      // Fallback: if not found, and there is exactly one active V1 transport for this apiKey, use it
+      if (!versionedTransport) {
+        const candidates = Object.entries(transports).filter(
+          ([key, vt]) => vt.version === 'v1' && key.startsWith(`${apiKey}-`)
+        );
+        if (candidates.length === 1) {
+          const [fallbackKey, vt] = candidates[0];
+          console.warn(
+            `[V1] sessionId not provided or not found. Falling back to single active transport: ${fallbackKey}`
+          );
+          compositeKey = fallbackKey;
+          versionedTransport = vt;
+        }
+      }
+
       if (versionedTransport && versionedTransport.version === 'v1') {
         await versionedTransport.transport.handlePostMessage(req, res, enrichedBody);
       } else {
