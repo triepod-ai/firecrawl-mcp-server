@@ -23,8 +23,14 @@ export async function runVersionedSSECloudServer() {
       status: 'OK', 
       versions: ['v1', 'v2'],
       endpoints: {
-        v1: '/:apiKey/sse',
-        v2: '/:apiKey/v2/sse'
+        v1: {
+          sse: '/{apiKey}/sse',
+          messages: '/{apiKey}/messages'
+        },
+        v2: {
+          sse: '/{apiKey}/v2/sse', 
+          messages: '/{apiKey}/v2/messages'
+        }
       }
     });
   });
@@ -36,7 +42,13 @@ export async function runVersionedSSECloudServer() {
   // V1 SSE endpoint (legacy)
   app.get('/:apiKey/sse', async (req, res) => {
     const apiKey = req.params.apiKey;
-    const transport = new SSEServerTransport(`/${apiKey}/messages`, res);
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    (res as any).flushHeaders?.();
+    const transport = new SSEServerTransport('/messages', res);
 
     console.log(`[V1] New SSE connection for API key: ${apiKey}`);
     
@@ -51,10 +63,21 @@ export async function runVersionedSSECloudServer() {
     await v1Server.connect(transport);
   });
 
+  // V1 SSE HEAD for quick availability checks
+  app.head('/:apiKey/sse', (req, res) => {
+    res.status(200).end();
+  });
+
   // V2 SSE endpoint (new)
   app.get('/:apiKey/v2/sse', async (req, res) => {
     const apiKey = req.params.apiKey;
-    const transport = new SSEServerTransport(`/${apiKey}/v2/messages`, res);
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    (res as any).flushHeaders?.();
+    const transport = new SSEServerTransport('/v2/messages', res);
 
     console.log(`[V2] New SSE connection for API key: ${apiKey}`);
     
@@ -67,6 +90,11 @@ export async function runVersionedSSECloudServer() {
     });
     
     await v2Server.connect(transport);
+  });
+
+  // V2 SSE HEAD for quick availability checks
+  app.head('/:apiKey/v2/sse', (req, res) => {
+    res.status(200).end();
   });
 
   // V1 message endpoint (legacy)
@@ -154,7 +182,7 @@ export async function runVersionedSSECloudServer() {
   );
 
   // Catch-all for unsupported endpoints
-  app.use('*', (req, res) => {
+  app.use((req, res) => {
     res.status(404).json({
       error: 'Endpoint not found',
       supportedEndpoints: {
@@ -173,18 +201,26 @@ export async function runVersionedSSECloudServer() {
 
   const PORT = process.env.PORT || 3000;
   
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🚀 Versioned MCP SSE Server listening on http://localhost:${PORT}`);
     console.log('📋 Available endpoints:');
     console.log(`   Health: http://localhost:${PORT}/health`);
-    console.log(`   V1 SSE: http://localhost:${PORT}/:apiKey/sse`);
-    console.log(`   V1 Messages: http://localhost:${PORT}/:apiKey/messages`);
-    console.log(`   V2 SSE: http://localhost:${PORT}/:apiKey/v2/sse`);
-    console.log(`   V2 Messages: http://localhost:${PORT}/:apiKey/v2/messages`);
+    console.log(`   V1 SSE: http://localhost:${PORT}/{apiKey}/sse`);
+    console.log(`   V1 Messages: http://localhost:${PORT}/{apiKey}/messages`);
+    console.log(`   V2 SSE: http://localhost:${PORT}/{apiKey}/v2/sse`);
+    console.log(`   V2 Messages: http://localhost:${PORT}/{apiKey}/v2/messages`);
     console.log('');
     console.log('🔧 Versions:');
     console.log('   V1: Firecrawl JS 1.29.3 (legacy tools + deep research + llms.txt)');
     console.log('   V2: Firecrawl JS 3.1.0 (modern API + JSON extraction)');
+  });
+
+  server.on('error', (error: any) => {
+    console.error('❌ Server error:', error);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use. Please use a different port.`);
+    }
+    process.exit(1);
   });
 
   // Graceful shutdown
@@ -206,4 +242,12 @@ export async function runVersionedSSECloudServer() {
     console.log('✅ Server shutdown complete');
     process.exit(0);
   });
+
 }
+
+// Start the server if this file is run directly
+// if (import.meta.url === `file://${process.argv[1]}`) {
+//   runVersionedSSECloudServer().catch(console.error);
+// }
+
+

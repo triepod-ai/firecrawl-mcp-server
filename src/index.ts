@@ -904,12 +904,11 @@ const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
 // Check if API key is required (only for cloud service)
 if (
-  process.env.CLOUD_SERVICE !== 'true' &&
-  !FIRECRAWL_API_URL &&
+  process.env.CLOUD_SERVICE === 'true' &&
   !FIRECRAWL_API_KEY
 ) {
   console.error(
-    'Error: FIRECRAWL_API_KEY environment variable is required when using the cloud service'
+    'Error: FIRECRAWL_API_KEY environment variable is required when CLOUD_SERVICE=true'
   );
   process.exit(1);
 }
@@ -1535,69 +1534,7 @@ async function runHTTPStreamableServer() {
     });
   });
 }
-async function runSSECloudServer() {
-  const transports: { [sessionId: string]: SSEServerTransport } = {};
-  const app = express();
-
-  app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-  });
-
-  app.get('/:apiKey/sse', async (req, res) => {
-    const apiKey = req.params.apiKey;
-    const transport = new SSEServerTransport(`/${apiKey}/messages`, res);
-
-    //todo: validate api key, close if invalid
-    const compositeKey = `${apiKey}-${transport.sessionId}`;
-    transports[compositeKey] = transport;
-    res.on('close', () => {
-      delete transports[compositeKey];
-    });
-    await server.connect(transport);
-  });
-
-  // Endpoint for the client to POST messages
-  // Remove express.json() middleware - let the transport handle the body
-  app.post(
-    '/:apiKey/messages',
-    express.json(),
-    async (req: Request, res: Response) => {
-      const apiKey = req.params.apiKey;
-      const body = req.body;
-      const enrichedBody = {
-        ...body,
-      };
-
-      if (enrichedBody && enrichedBody.params && !enrichedBody.params._meta) {
-        enrichedBody.params._meta = { apiKey };
-      } else if (
-        enrichedBody &&
-        enrichedBody.params &&
-        enrichedBody.params._meta
-      ) {
-        enrichedBody.params._meta.apiKey = apiKey;
-      }
-
-      console.log('enrichedBody', enrichedBody);
-
-      const sessionId = req.query.sessionId as string;
-      const compositeKey = `${apiKey}-${sessionId}`;
-      const transport = transports[compositeKey];
-      if (transport) {
-        await transport.handlePostMessage(req, res, enrichedBody);
-      } else {
-        res.status(400).send('No transport found for sessionId');
-      }
-    }
-  );
-
-  const PORT = 3000;
-  app.listen(PORT, () => {
-    console.log(`MCP SSE Server listening on http://localhost:${PORT}`);
-    console.log(`SSE endpoint: http://localhost:${PORT}/sse`);
-    console.log(`Message endpoint: http://localhost:${PORT}/messages`);
-  });
-}
+// Old runSSECloudServer function removed - now using versioned server
 
 if (process.env.CLOUD_SERVICE === 'true') {
   // Use versioned server for cloud service
