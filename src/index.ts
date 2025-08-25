@@ -991,18 +991,20 @@ async function withRetry<T>(
 }
 
 // Tool handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    SCRAPE_TOOL,
-    MAP_TOOL,
-    CRAWL_TOOL,
-    CHECK_CRAWL_STATUS_TOOL,
-    SEARCH_TOOL,
-    EXTRACT_TOOL,
-  ],
-}));
+server.setRequestHandler(ListToolsRequestSchema, async function listToolsRequestHandler() {
+  return {
+    tools: [
+      SCRAPE_TOOL,
+      MAP_TOOL,
+      CRAWL_TOOL,
+      CHECK_CRAWL_STATUS_TOOL,
+      SEARCH_TOOL,
+      EXTRACT_TOOL,
+    ],
+  };
+});
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async function callToolRequestHandler(request) {
   const startTime = Date.now();
   try {
     const { name, arguments: args } = request.params;
@@ -1334,15 +1336,17 @@ ${
     }
   } catch (error) {
     // Log detailed error information
-    safeLog('error', {
-      message: `Request failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      tool: request.params.name,
-      arguments: request.params.arguments,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    });
+    try {
+      safeLog('error', {
+        message: `Request failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        tool: request.params.name,
+        arguments: request.params.arguments,
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime,
+      });
+    } catch (_) {}
     return {
       content: [
         {
@@ -1356,7 +1360,9 @@ ${
     };
   } finally {
     // Log request completion with performance metrics
-    safeLog('info', `Request completed in ${Date.now() - startTime}ms`);
+    try {
+      safeLog('info', `Request completed in ${Date.now() - startTime}ms`);
+    } catch (_) {}
   }
 });
 
