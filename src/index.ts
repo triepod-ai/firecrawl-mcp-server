@@ -950,11 +950,15 @@ function safeLog(
     | 'emergency',
   data: any
 ): void {
-  // Always log to stderr to avoid relying on MCP logging capability
-  const message = `[${level}] ${
-    typeof data === 'object' ? JSON.stringify(data) : String(data)
-  }`;
-  console.error(message);
+  try {
+    // Always log to stderr to avoid relying on MCP logging capability
+    const message = `[${level}] ${
+      typeof data === 'object' ? JSON.stringify(data) : String(data)
+    }`;
+    console.error(message);
+  } catch (_) {
+    // ignore
+  }
 }
 
 // Add retry logic with exponential backoff
