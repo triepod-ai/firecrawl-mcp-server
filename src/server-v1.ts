@@ -744,6 +744,29 @@ interface ExtractResponse<T = any> {
   creditsUsed?: number;
 }
 
+// Utility: remove empty top-level fields to avoid sending null/empty params
+function removeEmptyTopLevel<T extends Record<string, any>>(
+  obj: T
+): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v == null) continue;
+    if (typeof v === 'string' && v.trim() === '') continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    if (
+      typeof v === 'object' &&
+      !Array.isArray(v) &&
+      Object.keys(v).length === 0
+    )
+      continue;
+    // @ts-expect-error dynamic assignment
+    out[k] = v;
+  }
+  return out;
+}
+
+// (Removed sanitizeV1ScrapeOptions per request)
+
 // Type guards for V1
 function isScrapeOptions(
   args: unknown
@@ -822,7 +845,7 @@ export function createV1Server() {
     {
       capabilities: {
         tools: {},
-        logging: {},
+        // logging: {},
       },
     }
   );
@@ -959,7 +982,7 @@ export function createV1Server() {
             );
 
             const response = await client.scrapeUrl(url, {
-              ...options,
+              ...removeEmptyTopLevel(options),
               // @ts-expect-error Extended API options including origin
               origin: 'mcp-server',
             });
@@ -1040,7 +1063,7 @@ export function createV1Server() {
           }
           const { url, ...options } = args;
           const response = await client.mapUrl(url, {
-            ...options,
+            ...removeEmptyTopLevel(options),
             // @ts-expect-error Extended API options including origin
             origin: 'mcp-server',
           });
@@ -1068,8 +1091,12 @@ export function createV1Server() {
           const { url, ...options } = args;
           const response = await withRetry(
             async () =>
-              // @ts-expect-error Extended API options including origin
-              client.asyncCrawlUrl(url, { ...options, origin: 'mcp-server' }),
+              client.asyncCrawlUrl(url, {
+                ...removeEmptyTopLevel(options),
+                // @ts-expect-error Extended API options including origin
+
+                origin: 'mcp-server',
+              }),
             'crawl operation'
           );
 
@@ -1121,7 +1148,10 @@ ${
           try {
             const response = await withRetry(
               async () =>
-                client.search(args.query, { ...args, origin: 'mcp-server' }),
+                client.search(args.query, {
+                  ...removeEmptyTopLevel(args),
+                  origin: 'mcp-server',
+                }),
               'search operation'
             );
 
@@ -1179,13 +1209,15 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
             const extractResponse = await withRetry(
               async () =>
                 client.extract(args.urls, {
-                  prompt: args.prompt,
-                  systemPrompt: args.systemPrompt,
-                  schema: args.schema,
-                  allowExternalLinks: args.allowExternalLinks,
-                  enableWebSearch: args.enableWebSearch,
-                  includeSubdomains: args.includeSubdomains,
-                  origin: 'mcp-server',
+                  ...removeEmptyTopLevel({
+                    prompt: args.prompt,
+                    systemPrompt: args.systemPrompt,
+                    schema: args.schema,
+                    allowExternalLinks: args.allowExternalLinks,
+                    enableWebSearch: args.enableWebSearch,
+                    includeSubdomains: args.includeSubdomains,
+                    origin: 'mcp-server',
+                  }),
                 } as ExtractParams),
               'extract operation'
             );
@@ -1266,11 +1298,12 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
             const response = await client.deepResearch(
               args.query as string,
               {
-                maxDepth: args.maxDepth as number,
-                timeLimit: args.timeLimit as number,
-                maxUrls: args.maxUrls as number,
-                // @ts-expect-error Extended API options including origin
-                origin: 'mcp-server',
+                ...removeEmptyTopLevel({
+                  maxDepth: args.maxDepth as number,
+                  timeLimit: args.timeLimit as number,
+                  maxUrls: args.maxUrls as number,
+                  origin: 'mcp-server',
+                }),
               },
               // Activity callback
               (activity) => {
@@ -1339,7 +1372,7 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
             const response = await withRetry(
               async () =>
                 client.generateLLMsText(url, {
-                  ...params,
+                  ...removeEmptyTopLevel(params),
                   // @ts-expect-error Extended API options including origin
                   origin: 'mcp-server',
                 }),
