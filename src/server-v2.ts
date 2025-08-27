@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+// import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   Tool,
   CallToolRequestSchema,
@@ -13,7 +13,7 @@ import FirecrawlApp, {
   type Document,
 } from 'firecrawl-js-current';
 
-import express, { Request, Response } from 'express';
+// import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -1010,9 +1010,14 @@ export function createV2Server() {
               contentParts.push((response as any).screenshot);
             }
             if (hasFormat('json') && (response as any).json) {
-              contentParts.push(JSON.stringify((response as any).json, null, 2));
+              contentParts.push(
+                JSON.stringify((response as any).json, null, 2)
+              );
             }
-            if (hasFormat('changeTracking') && (response as any).changeTracking) {
+            if (
+              hasFormat('changeTracking') &&
+              (response as any).changeTracking
+            ) {
               contentParts.push(
                 JSON.stringify((response as any).changeTracking, null, 2)
               );
@@ -1107,7 +1112,9 @@ export function createV2Server() {
 
         case 'firecrawl_check_crawl_status': {
           if (!isStatusCheckOptions(args)) {
-            throw new Error('Invalid arguments for firecrawl_check_crawl_status');
+            throw new Error(
+              'Invalid arguments for firecrawl_check_crawl_status'
+            );
           }
           const response = await client.getCrawlStatus(args.id);
 
@@ -1211,7 +1218,9 @@ ${
               content: [
                 {
                   type: 'text',
-                  text: trimResponseText(JSON.stringify(response.data, null, 2)),
+                  text: trimResponseText(
+                    JSON.stringify(response.data, null, 2)
+                  ),
                 },
               ],
               isError: false,

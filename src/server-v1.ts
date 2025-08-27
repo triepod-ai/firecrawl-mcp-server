@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+// import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   Tool,
   CallToolRequestSchema,
@@ -14,7 +14,7 @@ import FirecrawlApp, {
   type FirecrawlDocument,
 } from 'firecrawl-js-legacy';
 
-import express, { Request, Response } from 'express';
+// import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -192,7 +192,8 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
       },
       maxAge: {
         type: 'number',
-        description: 'Maximum age in milliseconds for cached content. Use cached data if available and younger than maxAge, otherwise scrape fresh. Enables 500% faster scrapes for recently cached pages. Default: 0 (always scrape fresh)',
+        description:
+          'Maximum age in milliseconds for cached content. Use cached data if available and younger than maxAge, otherwise scrape fresh. Enables 500% faster scrapes for recently cached pages. Default: 0 (always scrape fresh)',
       },
     },
     required: ['url'],
@@ -1051,7 +1052,10 @@ export function createV1Server() {
           }
           return {
             content: [
-              { type: 'text', text: trimResponseText(response.links.join('\n')) },
+              {
+                type: 'text',
+                text: trimResponseText(response.links.join('\n')),
+              },
             ],
             isError: false,
           };
@@ -1088,7 +1092,9 @@ export function createV1Server() {
 
         case 'firecrawl_check_crawl_status': {
           if (!isStatusCheckOptions(args)) {
-            throw new Error('Invalid arguments for firecrawl_check_crawl_status');
+            throw new Error(
+              'Invalid arguments for firecrawl_check_crawl_status'
+            );
           }
           const response = await client.checkCrawlStatus(args.id);
           if (!response.success) {
@@ -1202,7 +1208,9 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
               content: [
                 {
                   type: 'text',
-                  text: trimResponseText(JSON.stringify(response.data, null, 2)),
+                  text: trimResponseText(
+                    JSON.stringify(response.data, null, 2)
+                  ),
                 },
               ],
               isError: false,
@@ -1330,8 +1338,11 @@ ${result.markdown ? `\nContent:\n${result.markdown}` : ''}`
             // Start the generation process
             const response = await withRetry(
               async () =>
-                // @ts-expect-error Extended API options including origin
-                client.generateLLMsText(url, { ...params, origin: 'mcp-server' }),
+                client.generateLLMsText(url, {
+                  ...params,
+                  // @ts-expect-error Extended API options including origin
+                  origin: 'mcp-server',
+                }),
               'LLMs.txt generation'
             );
 
