@@ -339,6 +339,22 @@ export async function runVersionedSSECloudServer() {
           '';
         const sidLogV2 = existingSessionId || 'init';
         console.log(`[V2][HTTP][sid:${sidLogV2}] Route entered`);
+        console.log(
+          `[V2][HTTP][sid:${sidLogV2}] headers accept=${req.headers['accept'] || ''} content-type=${req.headers['content-type'] || ''}`
+        );
+        if (body && typeof body === 'object') {
+          console.log(
+            `[V2][HTTP][sid:${sidLogV2}] body.method=${(body as any).method || ''}`
+          );
+        }
+        const startTs = Date.now();
+        res.on('finish', () => {
+          console.log(
+            `[V2][HTTP][sid:${sidLogV2}] response status=${res.statusCode} content-type=${String(
+              res.getHeader('content-type') || ''
+            )} duration=${Date.now() - startTs}ms`
+          );
+        });
         if (existingSessionId) {
           console.log(
             `[V2][HTTP][sid:${existingSessionId}] Incoming ${req.method}`
