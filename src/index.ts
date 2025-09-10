@@ -356,6 +356,7 @@ await server.start({
   httpStream: {
     port: PORT,
     stateless: true,
+    host: '0.0.0.0',
     // Let FastMCP handle streaming/JSON negotiation
   },
 });
