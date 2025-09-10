@@ -7,13 +7,14 @@ on:
   push:
     branches:
       - staging
+      - fastmcp
   workflow_dispatch:
     inputs:
       registry:
         description: Container registry package suffix to use (e.g. staging, beta, dev)
         type: string
         required: true
-        default: 'staging'
+        default: 'beta'
 
 jobs:
   push-image:
