@@ -1,0 +1,51 @@
+name: Deploy Images to GHCR staging
+
+env:
+  DOTNET_VERSION: '6.0.x'
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: Container registry package suffix to use (e.g. staging, beta, dev)
+        type: string
+        required: true
+        default: 'staging'
+
+jobs:
+  push-image:
+    runs-on: ubuntu-latest
+    steps:
+      - id: registry
+        run: |
+          if [[ ${{ github.event_name == 'workflow_dispatch' }} == true ]]; then
+            echo "registry=${{ inputs.registry }}" >> $GITHUB_OUTPUT
+          else
+            echo "registry=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@main
+
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Set up Docker Buildx'
+        uses: docker/setup-buildx-action@v1
+
+      - name: 'Build Service Image'
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/firecrawl/firecrawl-mcp-server-${{ steps.registry.outputs.registry }}:latest
+          cache-from: type=registry,ref=ghcr.io/firecrawl/firecrawl-mcp-server-${{ steps.registry.outputs.registry }}:latest
+          cache-to: type=inline
