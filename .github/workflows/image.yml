@@ -30,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.service
           push: true
           tags: ghcr.io/firecrawl/firecrawl-mcp-server:latest
           cache-from: type=registry,ref=ghcr.io/firecrawl/firecrawl-mcp-server:latest
