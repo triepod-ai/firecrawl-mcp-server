@@ -76,11 +76,9 @@ const server = new FastMCP<SessionData>({
   authenticate: async (request): Promise<SessionData> => {
     if (process.env.CLOUD_SERVICE === 'true') {
       const apiKey = extractApiKey(request.headers);
-      console.log('Authenticating request', apiKey);
 
       if (!apiKey) {
-        console.error('Firecrawl API key is required');
-        process.exit(1);
+        throw new Error('Firecrawl API key is required');
       }
       return { firecrawlApiKey: apiKey };
     } else {
@@ -113,8 +111,7 @@ const ORIGIN = 'mcp-fastmcp';
 
 function getClient(session?: SessionData): FirecrawlApp {
   if (!session || !session.firecrawlApiKey) {
-    console.error('Unauthorized');
-    process.exit(1);
+    throw new Error('Unauthorized');
   }
   return createClient(session.firecrawlApiKey);
 }
