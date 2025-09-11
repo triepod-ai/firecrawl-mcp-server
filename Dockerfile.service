@@ -5,8 +5,9 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-# Ensure dev dependencies (typescript, etc.) are installed for build
-RUN npm ci --include=dev
+# Ensure dev dependencies (typescript, etc.) are installed for build, but skip scripts to avoid running
+# the package "prepare" script before the source code is copied.
+RUN npm ci --include=dev --ignore-scripts
 
 COPY . .
 RUN npm run build
