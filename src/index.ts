@@ -70,7 +70,7 @@ class ConsoleLogger implements Logger {
 
 const server = new FastMCP<SessionData>({
   name: 'firecrawl-fastmcp',
-  version: '2.0.0',
+  version: '3.0.0',
   logger: new ConsoleLogger(),
   roots: { enabled: false },
   authenticate: async (request): Promise<SessionData> => {
