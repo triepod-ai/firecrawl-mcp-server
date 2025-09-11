@@ -9,24 +9,12 @@ on:
       - staging
       - fastmcp
   workflow_dispatch:
-    inputs:
-      registry:
-        description: Container registry package suffix to use (e.g. staging, beta, dev)
-        type: string
-        required: true
-        default: 'beta'
+
 
 jobs:
   push-image:
     runs-on: ubuntu-latest
     steps:
-      - id: registry
-        run: |
-          if [[ ${{ github.event_name == 'workflow_dispatch' }} == true ]]; then
-            echo "registry=${{ inputs.registry }}" >> $GITHUB_OUTPUT
-          else
-            echo "registry=staging" >> $GITHUB_OUTPUT
-          fi
 
       - name: 'Checkout GitHub Action'
         uses: actions/checkout@main
@@ -47,6 +35,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/firecrawl/firecrawl-mcp-server-${{ steps.registry.outputs.registry }}:latest
-          cache-from: type=registry,ref=ghcr.io/firecrawl/firecrawl-mcp-server-${{ steps.registry.outputs.registry }}:latest
+          tags: ghcr.io/firecrawl/firecrawl-mcp-server-alpha:latest
+          cache-from: type=registry,ref=ghcr.io/firecrawl/firecrawl-mcp-server-alpha:latest
           cache-to: type=inline

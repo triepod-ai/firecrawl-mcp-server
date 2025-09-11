@@ -7,7 +7,6 @@ import type { IncomingHttpHeaders } from 'http';
 dotenv.config();
 
 interface SessionData {
-  headers: IncomingHttpHeaders;
   firecrawlApiKey: string;
   [key: string]: unknown;
 }
@@ -74,15 +73,23 @@ const server = new FastMCP<SessionData>({
   version: '2.0.0',
   logger: new ConsoleLogger(),
   roots: { enabled: false },
-  // Accept API key via header for each request (works well with stateless)
   authenticate: async (request): Promise<SessionData> => {
-    const apiKey = extractApiKey(request.headers);
-    console.log('Authenticating request', apiKey);
+    if (process.env.CLOUD_SERVICE === 'true') {
+      const apiKey = extractApiKey(request.headers);
+      console.log('Authenticating request', apiKey);
 
-    if (!apiKey) {
-      throw new Response(null, { status: 401, statusText: 'Unauthorized' });
+      if (!apiKey) {
+        console.error('Firecrawl API key is required');
+        process.exit(1);
+      }
+      return { firecrawlApiKey: apiKey };
+    } else {
+      if (!process.env.FIRECRAWL_API_KEY) {
+        console.error('Firecrawl API key is required');
+        process.exit(1);
+      }
+      return { firecrawlApiKey: process.env.FIRECRAWL_API_KEY };
     }
-    return { headers: request.headers, firecrawlApiKey: apiKey };
   },
   // Lightweight health endpoint for LB checks
   health: {
@@ -93,23 +100,23 @@ const server = new FastMCP<SessionData>({
   },
 });
 
-// Shared Firecrawl factory using session key per request
 function createClient(apiKey: string): FirecrawlApp {
-  return new FirecrawlApp({ apiKey });
-}
-
-function requireSession(session?: SessionData): SessionData {
-  if (!session) {
-    throw new Error('Unauthorized');
-  }
-  return session;
+  return new FirecrawlApp({
+    apiKey,
+    ...(process.env.FIRECRAWL_API_URL && {
+      apiUrl: process.env.FIRECRAWL_API_URL,
+    }),
+  });
 }
 
 const ORIGIN = 'mcp-fastmcp';
 
 function getClient(session?: SessionData): FirecrawlApp {
-  const { firecrawlApiKey } = requireSession(session);
-  return createClient(firecrawlApiKey);
+  if (!session || !session.firecrawlApiKey) {
+    console.error('Unauthorized');
+    process.exit(1);
+  }
+  return createClient(session.firecrawlApiKey);
 }
 
 function asText(data: unknown): string {
@@ -195,10 +202,7 @@ server.addTool({
     'Scrape content from a single URL. Best for precise single-page extraction. Returns formats like markdown/html/rawHtml/links or JSON via { type: "json", prompt, schema }.',
   parameters: scrapeParamsSchema,
   execute: async (args, { session, log }) => {
-    const { url, ...options } = args as unknown as {
-      url: string;
-      [key: string]: unknown;
-    };
+    const { url, ...options } = args;
     const client = getClient(session);
     const cleaned = removeEmptyTopLevel(options);
     log.info('Scraping URL', { url });
@@ -348,20 +352,30 @@ server.addTool({
     return asText(res);
   },
 });
+console.log('process.env', process.env);
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || 'localhost';
+type StartArgs = Parameters<typeof server.start>[0];
+let args: StartArgs;
 
-const PORT = Number(process.env.PORT || 8080);
+if (
+  process.env.CLOUD_SERVICE === 'true' ||
+  process.env.SSE_LOCAL === 'true' ||
+  process.env.HTTP_STREAMABLE_SERVER === 'true'
+) {
+  args = {
+    transportType: 'httpStream',
+    httpStream: {
+      port: PORT,
+      host: HOST,
+      stateless: true,
+    },
+  };
+} else {
+  // default: stdio
+  args = {
+    transportType: 'stdio',
+  };
+}
 
-await server.start({
-  transportType: 'httpStream',
-  httpStream: {
-    port: PORT,
-    stateless: true,
-    host: '0.0.0.0',
-    // Let FastMCP handle streaming/JSON negotiation
-  },
-});
-
-console.log(`[FastMCP] Listening on http://localhost:${PORT}/mcp (stateless)`);
-console.log(
-  '[FastMCP] Pass Firecrawl API key via one of: Authorization: Bearer <key> | X-Firecrawl-API-Key | X-API-Key'
-);
+await server.start(args);
