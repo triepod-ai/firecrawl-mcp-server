@@ -277,8 +277,21 @@ Search the web and optionally extract content from search results. This is the m
 **Common mistakes:** Using crawl or map for open-ended questions (use search instead).
 **Prompt Example:** "Find the latest research papers on AI published in 2023."
 **Sources:** web, images, news, default to web unless needed images or news.
-Only use scrapeOptions when you think it is absolutely necessary. When you do so default to a lower limit to avoid timeouts, 5 or lower..
-**Usage Example:**
+**Scrape Options:** Only use scrapeOptions when you think it is absolutely necessary. When you do so default to a lower limit to avoid timeouts, 5 or lower.
+**Usage Example without formats:**
+\`\`\`json
+{
+  "name": "firecrawl_search",
+  "arguments": {
+    "query": "top AI companies",
+    "limit": 5,
+    "sources": [
+      "web"
+    ]
+  }
+}
+\`\`\`
+**Usage Example with formats:**
 \`\`\`json
 {
   "name": "firecrawl_search",
