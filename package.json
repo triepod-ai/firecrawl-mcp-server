@@ -48,7 +48,7 @@
     "type": "git",
     "url": "git+https://github.com/firecrawl/firecrawl-mcp-server.git"
   },
-  "author": "vrknetha",
+  "author": "firecrawl",
   "bugs": {
     "url": "https://github.com/firecrawl/firecrawl-mcp-server/issues"
   },
