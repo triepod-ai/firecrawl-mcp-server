@@ -1,3 +1,11 @@
+<div align="center">
+  <a name="readme-top"></a>
+  <img
+    src="https://raw.githubusercontent.com/firecrawl/firecrawl-mcp-server/main/img/firecrawl-wordmark.png"
+    height="140"
+  >
+</div>
+
 # Firecrawl MCP Server
 
 A Model Context Protocol (MCP) server implementation that integrates with [Firecrawl](https://github.com/firecrawl/firecrawl) for web scraping capabilities.
