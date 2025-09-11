@@ -352,7 +352,6 @@ server.addTool({
     return asText(res);
   },
 });
-console.log('process.env', process.env);
 const PORT = Number(process.env.PORT || 3000);
 const HOST =
   process.env.CLOUD_SERVICE === 'true'
