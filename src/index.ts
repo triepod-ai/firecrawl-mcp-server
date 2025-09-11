@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import dotenv from 'dotenv';
 import { FastMCP, type Logger } from 'fastmcp';
 import { z } from 'zod';
@@ -235,7 +236,7 @@ server.addTool({
 server.addTool({
   name: 'firecrawl_search',
   description:
-    'Search the web and optionally scrape results. Provide scrapeOptions.formats (strings or { type: "json", ... }) for per-result extraction.',
+    'Search the web and optionally scrape results. Provide scrapeOptions.formats (strings or { type: "json", ... }) for per-result extraction only when you think it is absolutely necessary. When you do so default to a lower limit to avoid timeouts, maybe 5.',
   parameters: z.object({
     query: z.string().min(1),
     limit: z.number().optional(),
