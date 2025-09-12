@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import dotenv from 'dotenv';
-import { FastMCP, type Logger } from 'fastmcp';
+import { FastMCP, type Logger } from 'firecrawl-fastmcp';
 import { z } from 'zod';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import type { IncomingHttpHeaders } from 'http';
 
-dotenv.config();
+dotenv.config({ debug: false, quiet: true });
 
 interface SessionData {
   firecrawlApiKey: string;
@@ -52,20 +52,36 @@ function removeEmptyTopLevel<T extends Record<string, any>>(
 }
 
 class ConsoleLogger implements Logger {
+  private shouldLog = (
+    process.env.CLOUD_SERVICE === 'true' ||
+    process.env.SSE_LOCAL === 'true' ||
+    process.env.HTTP_STREAMABLE_SERVER === 'true'
+  );
+  
   debug(...args: unknown[]): void {
-    console.debug('[DEBUG]', new Date().toISOString(), ...args);
+    if (this.shouldLog) {
+      console.debug('[DEBUG]', new Date().toISOString(), ...args);
+    }
   }
   error(...args: unknown[]): void {
-    console.error('[ERROR]', new Date().toISOString(), ...args);
+    if (this.shouldLog) {
+      console.error('[ERROR]', new Date().toISOString(), ...args);
+    }
   }
   info(...args: unknown[]): void {
-    console.log('[INFO]', new Date().toISOString(), ...args);
+    if (this.shouldLog) {
+      console.log('[INFO]', new Date().toISOString(), ...args);
+    }
   }
   log(...args: unknown[]): void {
-    console.log('[LOG]', new Date().toISOString(), ...args);
+    if (this.shouldLog) {
+      console.log('[LOG]', new Date().toISOString(), ...args);
+    }
   }
   warn(...args: unknown[]): void {
-    console.warn('[WARN]', new Date().toISOString(), ...args);
+    if (this.shouldLog) {
+      console.warn('[WARN]', new Date().toISOString(), ...args);
+    }
   }
 }
 
@@ -74,7 +90,7 @@ const server = new FastMCP<SessionData>({
   version: '3.0.0',
   logger: new ConsoleLogger(),
   roots: { enabled: false },
-  authenticate: async (request): Promise<SessionData> => {
+  authenticate: async (request: { headers: IncomingHttpHeaders }): Promise<SessionData> => {
     if (process.env.CLOUD_SERVICE === 'true') {
       const apiKey = extractApiKey(request.headers);
 
@@ -219,12 +235,15 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
 **Returns:** Markdown, HTML, or other formats as specified.
 `,
   parameters: scrapeParamsSchema,
-  execute: async (args, { session, log }) => {
-    const { url, ...options } = args;
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
+    const { url, ...options } = args as { url: string } & Record<string, unknown>;
     const client = getClient(session);
-    const cleaned = removeEmptyTopLevel(options);
-    log.info('Scraping URL', { url });
-    const res = await client.scrape(url, { ...cleaned, origin: ORIGIN } as any);
+    const cleaned = removeEmptyTopLevel(options as Record<string, unknown>);
+    log.info('Scraping URL', { url: String(url) });
+    const res = await client.scrape(String(url), { ...cleaned, origin: ORIGIN } as any);
     return asText(res);
   },
 });
@@ -257,12 +276,15 @@ Map a website to discover all indexed URLs on the site.
     limit: z.number().optional(),
     ignoreQueryParameters: z.boolean().optional(),
   }),
-  execute: async (args, { session, log }) => {
-    const { url, ...options } = args;
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
+    const { url, ...options } = args as { url: string } & Record<string, unknown>;
     const client = getClient(session);
-    const cleaned = removeEmptyTopLevel(options);
-    log.info('Mapping URL', { url });
-    const res = await client.map(url, { ...cleaned, origin: ORIGIN } as any);
+    const cleaned = removeEmptyTopLevel(options as Record<string, unknown>);
+    log.info('Mapping URL', { url: String(url) });
+    const res = await client.map(String(url), { ...cleaned, origin: ORIGIN } as any);
     return asText(res);
   },
 });
@@ -325,7 +347,10 @@ Search the web and optionally extract content from search results. This is the m
       .optional(),
     scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional(),
   }),
-  execute: async (args, { session, log }) => {
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
     const client = getClient(session);
     const { query, ...opts } = args as Record<string, unknown>;
     const cleaned = removeEmptyTopLevel(opts as Record<string, unknown>);
@@ -420,7 +445,10 @@ Check the status of a crawl job.
 **Returns:** Status and progress of the crawl job, including results if available.
 `,
   parameters: z.object({ id: z.string() }),
-  execute: async (args, { session }) => {
+  execute: async (
+    args: unknown,
+    { session }: { session?: SessionData }
+  ): Promise<string> => {
     const client = getClient(session);
     const res = await client.getCrawlStatus((args as any).id as string);
     return asText(res);
@@ -474,7 +502,10 @@ Extract structured information from web pages using LLM capabilities. Supports b
     enableWebSearch: z.boolean().optional(),
     includeSubdomains: z.boolean().optional(),
   }),
-  execute: async (args, { session, log }) => {
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
     const client = getClient(session);
     const a = args as Record<string, unknown>;
     log.info('Extracting from URLs', {
