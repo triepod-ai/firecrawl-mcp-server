@@ -8,7 +8,7 @@ import type { IncomingHttpHeaders } from 'http';
 dotenv.config({ debug: false, quiet: true });
 
 interface SessionData {
-  firecrawlApiKey: string;
+  firecrawlApiKey?: string;
   [key: string]: unknown;
 }
 
@@ -99,8 +99,9 @@ const server = new FastMCP<SessionData>({
       }
       return { firecrawlApiKey: apiKey };
     } else {
-      if (!process.env.FIRECRAWL_API_KEY) {
-        console.error('Firecrawl API key is required');
+      // For self-hosted instances, API key is optional if FIRECRAWL_API_URL is provided
+      if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) {
+        console.error('Either FIRECRAWL_API_KEY or FIRECRAWL_API_URL must be provided');
         process.exit(1);
       }
       return { firecrawlApiKey: process.env.FIRECRAWL_API_KEY };
@@ -115,22 +116,38 @@ const server = new FastMCP<SessionData>({
   },
 });
 
-function createClient(apiKey: string): FirecrawlApp {
-  return new FirecrawlApp({
-    apiKey,
+function createClient(apiKey?: string): FirecrawlApp {
+  const config: any = {
     ...(process.env.FIRECRAWL_API_URL && {
       apiUrl: process.env.FIRECRAWL_API_URL,
     }),
-  });
+  };
+  
+  // Only add apiKey if it's provided (required for cloud, optional for self-hosted)
+  if (apiKey) {
+    config.apiKey = apiKey;
+  }
+  
+  return new FirecrawlApp(config);
 }
 
 const ORIGIN = 'mcp-fastmcp';
 
 function getClient(session?: SessionData): FirecrawlApp {
-  if (!session || !session.firecrawlApiKey) {
-    throw new Error('Unauthorized');
+  // For cloud service, API key is required
+  if (process.env.CLOUD_SERVICE === 'true') {
+    if (!session || !session.firecrawlApiKey) {
+      throw new Error('Unauthorized');
+    }
+    return createClient(session.firecrawlApiKey);
   }
-  return createClient(session.firecrawlApiKey);
+  
+  // For self-hosted instances, API key is optional if FIRECRAWL_API_URL is provided
+  if (!process.env.FIRECRAWL_API_URL && (!session || !session.firecrawlApiKey)) {
+    throw new Error('Unauthorized: API key is required when not using a self-hosted instance');
+  }
+  
+  return createClient(session?.firecrawlApiKey);
 }
 
 function asText(data: unknown): string {
