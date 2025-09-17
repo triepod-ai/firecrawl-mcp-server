@@ -133,6 +133,9 @@ function createClient(apiKey?: string): FirecrawlApp {
 
 const ORIGIN = 'mcp-fastmcp';
 
+// Safe mode is enabled by default for cloud service to comply with ChatGPT safety requirements
+const SAFE_MODE = process.env.CLOUD_SERVICE === 'true';
+
 function getClient(session?: SessionData): FirecrawlApp {
   // For cloud service, API key is required
   if (process.env.CLOUD_SERVICE === 'true') {
@@ -156,6 +159,15 @@ function asText(data: unknown): string {
 
 // scrape tool (v2 semantics, minimal args)
 // Centralized scrape params (used by scrape, and referenced in search/crawl scrapeOptions)
+
+// Define safe action types
+const safeActionTypes = ['wait', 'screenshot', 'scroll', 'scrape'] as const;
+const otherActions = ['click', 'write', 'press', 'executeJavascript', 'generatePDF'] as const;
+const allActionTypes = [...safeActionTypes, ...otherActions] as const;
+
+// Use appropriate action types based on safe mode
+const allowedActionTypes = SAFE_MODE ? safeActionTypes : allActionTypes;
+
 const scrapeParamsSchema = z.object({
   url: z.string().url(),
   formats: z
@@ -190,30 +202,22 @@ const scrapeParamsSchema = z.object({
   includeTags: z.array(z.string()).optional(),
   excludeTags: z.array(z.string()).optional(),
   waitFor: z.number().optional(),
-  actions: z
-    .array(
-      z.object({
-        type: z.enum([
-          'wait',
-          'click',
-          'screenshot',
-          'write',
-          'press',
-          'scroll',
-          'scrape',
-          'executeJavascript',
-          'generatePDF',
-        ]),
-        selector: z.string().optional(),
-        milliseconds: z.number().optional(),
-        text: z.string().optional(),
-        key: z.string().optional(),
-        direction: z.enum(['up', 'down']).optional(),
-        script: z.string().optional(),
-        fullPage: z.boolean().optional(),
-      })
-    )
-    .optional(),
+  ...(SAFE_MODE ? {} : {
+    actions: z
+      .array(
+        z.object({
+          type: z.enum(allowedActionTypes),
+          selector: z.string().optional(),
+          milliseconds: z.number().optional(),
+          text: z.string().optional(),
+          key: z.string().optional(),
+          direction: z.enum(['up', 'down']).optional(),
+          script: z.string().optional(),
+          fullPage: z.boolean().optional(),
+        })
+      )
+      .optional(),
+  }),
   mobile: z.boolean().optional(),
   skipTlsVerification: z.boolean().optional(),
   removeBase64Images: z.boolean().optional(),
@@ -250,6 +254,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
 \`\`\`
 **Performance:** Add maxAge parameter for 500% faster scrapes using cached data.
 **Returns:** Markdown, HTML, or other formats as specified.
+${SAFE_MODE ? '**Safe Mode:** Read-only content extraction. Interactive actions (click, write, executeJavascript) are disabled for security.' : ''}
 `,
   parameters: scrapeParamsSchema,
   execute: async (
@@ -405,6 +410,7 @@ server.addTool({
  }
  \`\`\`
  **Returns:** Operation ID for status checking; use firecrawl_check_crawl_status to check progress.
+ ${SAFE_MODE ? '**Safe Mode:** Read-only crawling. Webhooks and interactive actions are disabled for security.' : ''}
  `,
   parameters: z.object({
     url: z.string(),
@@ -419,15 +425,17 @@ server.addTool({
     crawlEntireDomain: z.boolean().optional(),
     delay: z.number().optional(),
     maxConcurrency: z.number().optional(),
-    webhook: z
-      .union([
-        z.string(),
-        z.object({
-          url: z.string(),
-          headers: z.record(z.string(), z.string()).optional(),
-        }),
-      ])
-      .optional(),
+    ...(SAFE_MODE ? {} : {
+      webhook: z
+        .union([
+          z.string(),
+          z.object({
+            url: z.string(),
+            headers: z.record(z.string(), z.string()).optional(),
+          }),
+        ])
+        .optional(),
+    }),
     deduplicateSimilarURLs: z.boolean().optional(),
     ignoreQueryParameters: z.boolean().optional(),
     scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional(),
