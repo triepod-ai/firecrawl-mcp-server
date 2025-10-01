@@ -1,0 +1,12 @@
+services:
+  firecrawl-mcp:
+    image: firecrawl-mcp-server-firecrawl-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+    stdin_open: true
+    tty: false
+    # MCP servers use stdio, so no ports needed
+    network_mode: "none"

@@ -6,11 +6,48 @@
   >
 </div>
 
-# Firecrawl MCP Server
+# Firecrawl MCP Server (Enhanced Fork)
+
+> **Note**: This is an enhanced fork of the [official Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) maintained by [@triepod-ai](https://github.com/triepod-ai) with updated dependencies and framework improvements.
 
 A Model Context Protocol (MCP) server implementation that integrates with [Firecrawl](https://github.com/firecrawl/firecrawl) for web scraping capabilities.
 
+## Fork Changes
+
+This fork includes the following enhancements:
+
+- **Updated MCP SDK**: Upgraded from TypeScript MCP SDK 1.18.0 to 1.18.2 (October 1, 2025)
+- **Dependency Updates**: All dependencies updated to latest stable versions
+- **Framework Improvements**: Enhanced reliability, error handling, and transport stability
+
+For the original implementation, see the [upstream repository](https://github.com/firecrawl/firecrawl-mcp-server).
+
 > Big thanks to [@vrknetha](https://github.com/vrknetha), [@knacklabs](https://www.knacklabs.ai) for the initial implementation!
+
+## MCP SDK Version
+
+**Current Version**: TypeScript MCP SDK 1.18.2 (upgraded October 1, 2025)
+
+This server uses the latest Model Context Protocol SDK (via `firecrawl-fastmcp` dependency) with modern features:
+
+### SDK Features:
+- **OAuth/OIDC Authentication**: Complete authentication flow support
+- **Enhanced Tool Metadata**: Rich tool definition capabilities with `_meta` field
+- **Improved Reliability**: Enhanced error handling and transport stability
+- **Audio Content**: Protocol-level support for audio content types
+- **CORS Support**: Browser-based client integration
+- **Middleware Architecture**: Composable fetch middleware for auth workflows
+
+### Additional Dependency Updates (October 1, 2025):
+- `@mendable/firecrawl-js`: 4.3.6 → 4.3.7
+- `@types/node`: 24.3.1 → 24.6.1
+- `dotenv`: 17.2.2 → 17.2.3
+- `typescript`: 5.9.2 → 5.9.3
+- `zod`: 4.1.5 → 4.1.11
+
+**Previous MCP SDK Version**: 1.18.0 → **Upgrade Jump**: Patch version with stability improvements
+
+For complete MCP protocol documentation, see [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Features
 
