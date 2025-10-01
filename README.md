@@ -98,9 +98,9 @@ Add this to your `./codeium/windsurf/model_config.json`:
 }
 ```
 
-### Running with SSE Local Mode
+### Running with Streamable HTTP Local Mode
 
-To run the server using Server-Sent Events (SSE) locally instead of the default stdio transport:
+To run the server using Streamable HTTP locally instead of the default stdio transport:
 
 ```bash
 env HTTP_STREAMABLE_SERVER=true FIRECRAWL_API_KEY=fc-YOUR_API_KEY npx -y firecrawl-mcp
