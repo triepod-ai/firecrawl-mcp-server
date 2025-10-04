@@ -19,6 +19,9 @@ This fork includes the following enhancements:
 - **Updated MCP SDK**: Upgraded from TypeScript MCP SDK 1.18.0 to 1.18.2 (October 1, 2025)
 - **Dependency Updates**: All dependencies updated to latest stable versions
 - **Framework Improvements**: Enhanced reliability, error handling, and transport stability
+- **Docker Containerization**: Production-ready Docker support with docker-compose.yml
+- **MCP-Compliant Wrapper Script**: Clean stdio handling for JSON-RPC communication
+- **Log File Infrastructure**: Comprehensive logging system for debugging without stdio pollution
 
 For the original implementation, see the [upstream repository](https://github.com/firecrawl/firecrawl-mcp-server).
 
@@ -72,6 +75,87 @@ env FIRECRAWL_API_KEY=fc-YOUR_API_KEY npx -y firecrawl-mcp
 
 ```bash
 npm install -g firecrawl-mcp
+```
+
+### Running with Docker
+
+This fork includes a production-ready Docker setup with MCP protocol compliance. The wrapper script ensures clean stdio for JSON-RPC communication while maintaining comprehensive logging.
+
+#### Prerequisites
+
+- Docker and Docker Compose installed
+- Firecrawl API key stored in `~/auth/.env`
+
+#### Setup
+
+1. Create the environment file:
+
+```bash
+# Create auth directory
+mkdir -p ~/auth
+
+# Add your API key to the environment file
+echo "FIRECRAWL_API_KEY=fc-YOUR_API_KEY" > ~/auth/.env
+```
+
+2. Copy the wrapper script to your home directory:
+
+```bash
+cp run-firecrawl-mcp-server.sh ~/run-firecrawl-mcp-server.sh
+chmod +x ~/run-firecrawl-mcp-server.sh
+```
+
+#### Usage
+
+Run the MCP server:
+
+```bash
+~/run-firecrawl-mcp-server.sh
+```
+
+To force rebuild the Docker image:
+
+```bash
+~/run-firecrawl-mcp-server.sh --build
+```
+
+#### Features
+
+- **Clean stdio**: All logs and errors redirected to log files, keeping stdout/stderr clean for MCP JSON-RPC
+- **Log files**: Timestamped logs stored in `~/.firecrawl-mcp/logs/firecrawl-mcp-YYYYMMDD-HHMMSS.log`
+- **Network isolation**: Container runs with `network_mode: "none"` for security
+- **Graceful shutdown**: Proper signal handling (SIGTERM, SIGINT) with cleanup
+- **Environment management**: Automatic loading from `~/auth/.env`
+
+#### Configuration with Claude Desktop
+
+To use the Docker version with Claude Desktop, add this to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "firecrawl-mcp-docker": {
+      "command": "/home/YOUR_USERNAME/run-firecrawl-mcp-server.sh",
+      "args": []
+    }
+  }
+}
+```
+
+Replace `YOUR_USERNAME` with your actual username.
+
+#### Troubleshooting
+
+Check the latest log file for errors:
+
+```bash
+tail -f ~/.firecrawl-mcp/logs/firecrawl-mcp-*.log | tail -1
+```
+
+Or view all recent logs:
+
+```bash
+ls -lt ~/.firecrawl-mcp/logs/
 ```
 
 ### Running on Cursor

@@ -10,3 +10,5 @@ services:
     tty: false
     # MCP servers use stdio, so no ports needed
     network_mode: "none"
+    # Override entrypoint to keep container alive - wrapper script will exec the actual server
+    command: tail -f /dev/null
