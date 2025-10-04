@@ -252,7 +252,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
   }
 }
 \`\`\`
-**Performance:** Add maxAge parameter for 500% faster scrapes using cached data.
+**Performance:** Add maxAge parameter for up to 500% faster scrapes using Firecrawl's caching (see https://docs.firecrawl.dev/features/fast-scraping).
 **Returns:** Markdown, HTML, or other formats as specified.
 ${SAFE_MODE ? '**Safe Mode:** Read-only content extraction. Interactive actions (click, write, executeJavascript) are disabled for security.' : ''}
 `,

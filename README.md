@@ -16,12 +16,14 @@ A Model Context Protocol (MCP) server implementation that integrates with [Firec
 
 This fork includes the following enhancements:
 
-- **Updated MCP SDK**: Upgraded from TypeScript MCP SDK 1.18.0 to 1.18.2 (October 1, 2025)
-- **Dependency Updates**: All dependencies updated to latest stable versions
-- **Framework Improvements**: Enhanced reliability, error handling, and transport stability
-- **Docker Containerization**: Production-ready Docker support with docker-compose.yml
-- **MCP-Compliant Wrapper Script**: Clean stdio handling for JSON-RPC communication
-- **Log File Infrastructure**: Comprehensive logging system for debugging without stdio pollution
+- **MCP Framework Migration**: Migrated to `firecrawl-fastmcp@1.0.3` for optimized Firecrawl integration
+- **Firecrawl Client Update**: Updated to `@mendable/firecrawl-js@4.3.6` (latest patch)
+- **Node.js Compatibility**: Expanded support to Node 18+ (Claude Desktop compatible)
+- **Docker Containerization**: Production-ready Docker support with MCP-compliant wrapper ([validation](./validation-reports/wrapper-script-validation.md))
+- **Clean Stdio Handling**: MCP protocol-compliant wrapper for JSON-RPC communication ([validation](./validation-reports/docker-stdio-compliance.md))
+- **Log File Infrastructure**: Comprehensive logging system for debugging without stdio pollution ([validation](./validation-reports/logging-infrastructure.md))
+
+See [VALIDATION.md](./VALIDATION.md) for detailed evidence and verification reports.
 
 For the original implementation, see the [upstream repository](https://github.com/firecrawl/firecrawl-mcp-server).
 
@@ -29,11 +31,13 @@ For the original implementation, see the [upstream repository](https://github.co
 
 ## MCP SDK Version
 
-**Current Version**: TypeScript MCP SDK 1.18.2 (upgraded October 1, 2025)
+**Current Version**: Firecrawl-FastMCP 1.0.3 (Firecrawl-optimized MCP implementation)
 
-This server uses the latest Model Context Protocol SDK (via `firecrawl-fastmcp` dependency) with modern features:
+This server uses the Firecrawl-optimized Model Context Protocol SDK via the `firecrawl-fastmcp` dependency.
 
-### SDK Features:
+*Note: The features listed below are from the upstream MCP SDK and Firecrawl library, not specific to our fork. See [VALIDATION.md](./VALIDATION.md) for our fork-specific enhancements.*
+
+### SDK Features (Upstream):
 - **OAuth/OIDC Authentication**: Complete authentication flow support
 - **Enhanced Tool Metadata**: Rich tool definition capabilities with `_meta` field
 - **Improved Reliability**: Enhanced error handling and transport stability
@@ -41,14 +45,12 @@ This server uses the latest Model Context Protocol SDK (via `firecrawl-fastmcp` 
 - **CORS Support**: Browser-based client integration
 - **Middleware Architecture**: Composable fetch middleware for auth workflows
 
-### Additional Dependency Updates (October 1, 2025):
-- `@mendable/firecrawl-js`: 4.3.6 → 4.3.7
-- `@types/node`: 24.3.1 → 24.6.1
-- `dotenv`: 17.2.2 → 17.2.3
-- `typescript`: 5.9.2 → 5.9.3
-- `zod`: 4.1.5 → 4.1.11
-
-**Previous MCP SDK Version**: 1.18.0 → **Upgrade Jump**: Patch version with stability improvements
+### Current Dependencies:
+- `@mendable/firecrawl-js`: ^4.3.6
+- `@types/node`: ^24.3.1
+- `dotenv`: ^17.2.2
+- `typescript`: ^5.9.2
+- `zod`: ^4.1.5
 
 For complete MCP protocol documentation, see [Model Context Protocol](https://modelcontextprotocol.io/).
 
@@ -421,10 +423,12 @@ These configurations control:
 
 The server utilizes Firecrawl's built-in rate limiting and batch processing capabilities:
 
-- Automatic rate limit handling with exponential backoff
-- Efficient parallel processing for batch operations
-- Smart request queuing and throttling
-- Automatic retries for transient errors
+*Note: These are features of the Firecrawl JS client library, not specific enhancements of this fork.*
+
+- Automatic rate limit handling with exponential backoff (Firecrawl library)
+- Efficient parallel processing for batch operations (Firecrawl library)
+- Smart request queuing and throttling (Firecrawl library)
+- Automatic retries for transient errors (Firecrawl library)
 
 ## How to Choose a Tool
 
