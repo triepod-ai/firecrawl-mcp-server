@@ -9,6 +9,6 @@ services:
     stdin_open: true
     tty: false
     # MCP servers use stdio, so no ports needed
-    network_mode: "none"
+    network_mode: "bridge"
     # Override entrypoint to keep container alive - wrapper script will exec the actual server
     command: tail -f /dev/null
