@@ -8,9 +8,16 @@
 
 # Firecrawl MCP Server (Enhanced Fork)
 
-> **Note**: This is an enhanced fork of the [official Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) maintained by [@triepod-ai](https://github.com/triepod-ai) with updated dependencies and framework improvements.
+> **Note**: This is an enhanced fork of the [official Firecrawl MCP Server](https://github.com/firecrawl/firecrawl-mcp-server) maintained by [@triepod-ai](https://github.com/triepod-ai) with updated dependencies, framework improvements, and comprehensive parameter descriptions for better AI agent integration.
 
 A Model Context Protocol (MCP) server implementation that integrates with [Firecrawl](https://github.com/firecrawl/firecrawl) for web scraping capabilities.
+
+**✨ Key Fork Highlights:**
+- 🔧 **Enhanced Parameter Descriptions**: 50+ parameters with LLM-friendly descriptions across all 6 tools ([details](#parameter-descriptions-enhancement))
+- 🐳 **Docker Ready**: Production MCP-compliant containerization ([validation](./validation-reports/docker-stdio-compliance.md))
+- 📦 **Latest Dependencies**: Firecrawl-FastMCP 1.0.3 + @mendable/firecrawl-js 4.3.6
+- 🔍 **Developer Experience**: Self-documenting schemas with IDE tooltips and AI agent optimization
+- 📝 **Comprehensive Documentation**: [Technical implementation guide](./PARAMETER_DESCRIPTIONS.md) with patterns and examples
 
 ## Fork Changes
 
@@ -18,12 +25,46 @@ This fork includes the following enhancements:
 
 - **MCP Framework Migration**: Migrated to `firecrawl-fastmcp@1.0.3` for optimized Firecrawl integration
 - **Firecrawl Client Update**: Updated to `@mendable/firecrawl-js@4.3.6` (latest patch)
+- **Enhanced Parameter Descriptions**: Added comprehensive `.describe()` annotations to all Zod schemas across 6 tools (scrape, map, search, crawl, check_crawl_status, extract) with LLM-friendly descriptions for improved AI agent understanding and parameter guidance
 - **Node.js Compatibility**: Expanded support to Node 18+ (Claude Desktop compatible)
 - **Docker Containerization**: Production-ready Docker support with MCP-compliant wrapper ([validation](./validation-reports/wrapper-script-validation.md))
 - **Clean Stdio Handling**: MCP protocol-compliant wrapper for JSON-RPC communication ([validation](./validation-reports/docker-stdio-compliance.md))
 - **Log File Infrastructure**: Comprehensive logging system for debugging without stdio pollution ([validation](./validation-reports/logging-infrastructure.md))
 
 See [VALIDATION.md](./VALIDATION.md) for detailed evidence and verification reports.
+
+### Parameter Descriptions Enhancement
+
+One of the key improvements in this fork is the addition of comprehensive parameter descriptions to all MCP tools. This enhancement significantly improves the developer experience and AI agent understanding by providing:
+
+**Implementation Details:**
+- Added `.describe()` annotations to 50+ parameters across all 6 MCP tools
+- Covers complex nested types including:
+  - Union types (formats, webhook configurations)
+  - Nested objects (location, viewport, actions)
+  - Conditional schemas (SAFE_MODE dependent parameters)
+- Shared schema optimization: `scrapeParamsSchema` descriptions inherited by `search` and `crawl` tools
+
+**Benefits:**
+- **Improved AI Agent Understanding**: LLMs can better understand parameter purpose, format, and usage
+- **Better Documentation**: Self-documenting schema reduces need for external documentation
+- **Enhanced Developer Experience**: IDE tooltips and auto-complete show parameter descriptions
+- **Reduced Errors**: Clear guidance on expected values and formats (e.g., "Milliseconds to wait...", "Country code (e.g., 'US', 'GB')")
+- **Performance Hints**: Descriptions include optimization tips (e.g., maxAge for 500% faster scraping)
+
+**Example Enhancement:**
+```typescript
+// Before (upstream)
+maxAge: z.number().optional()
+
+// After (this fork)
+maxAge: z.number().optional().describe(
+  "Maximum cache age in milliseconds. Use cached results if available and younger than this value. " +
+  "Enables fast scraping (up to 500% faster). Example: 172800000 for 48 hours"
+)
+```
+
+📖 **Full Technical Documentation**: See [PARAMETER_DESCRIPTIONS.md](./PARAMETER_DESCRIPTIONS.md) for complete implementation details, all 50+ parameter descriptions, and technical patterns used.
 
 For the original implementation, see the [upstream repository](https://github.com/firecrawl/firecrawl-mcp-server).
 
