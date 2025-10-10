@@ -379,6 +379,8 @@ The query also supports search operators, that you can use if needed to refine t
 **Prompt Example:** "Find the latest research papers on AI published in 2023."
 **Sources:** web, images, news, default to web unless needed images or news.
 **Scrape Options:** Only use scrapeOptions when you think it is absolutely necessary. When you do so default to a lower limit to avoid timeouts, 5 or lower.
+**Optimal Workflows:** Search first using firecrawl_search without formats, and then use the scrape tool to get the content of the relevantpage(s) that you want to scrape
+
 **Usage Example without formats:**
 \`\`\`json
 {
