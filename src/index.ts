@@ -169,7 +169,7 @@ const allActionTypes = [...safeActionTypes, ...otherActions] as const;
 const allowedActionTypes = SAFE_MODE ? safeActionTypes : allActionTypes;
 
 const scrapeParamsSchema = z.object({
-  url: z.string().url().describe("The URL to scrape content from"),
+  url: z.string().url().describe("The URL to scrape content from. Must be a valid HTTP/HTTPS URL"),
   formats: z
     .array(
       z.union([
@@ -189,53 +189,53 @@ const scrapeParamsSchema = z.object({
         }),
         z.object({
           type: z.literal('screenshot').describe("Capture screenshot with custom settings"),
-          fullPage: z.boolean().optional().describe("Capture full page screenshot instead of just viewport"),
-          quality: z.number().optional().describe("Screenshot quality (0-100)"),
+          fullPage: z.boolean().optional().describe("Capture full page screenshot instead of just viewport. Default: false"),
+          quality: z.number().optional().describe("Screenshot quality from 0-100. Higher values produce better quality but larger file sizes. Default: 80"),
           viewport: z
             .object({
-              width: z.number().describe("Viewport width in pixels"),
-              height: z.number().describe("Viewport height in pixels")
+              width: z.number().describe("Viewport width in pixels. Example: 1920"),
+              height: z.number().describe("Viewport height in pixels. Example: 1080")
             })
             .optional()
-            .describe("Custom viewport dimensions for screenshot"),
+            .describe("Custom viewport dimensions for screenshot. Defaults to 1280x720 if not specified"),
         }),
       ])
     )
     .optional()
-    .describe("Output formats to return. Can be format strings (markdown, html, rawHtml, screenshot, links, summary, changeTracking) or objects for JSON extraction or screenshot configuration"),
-  onlyMainContent: z.boolean().optional().describe("Extract only main content, removing headers/footers/navigation. Default: true"),
-  includeTags: z.array(z.string()).optional().describe("HTML tags to include in extraction (e.g., ['article', 'main'])"),
-  excludeTags: z.array(z.string()).optional().describe("HTML tags to exclude from extraction (e.g., ['nav', 'footer'])"),
-  waitFor: z.number().optional().describe("Milliseconds to wait before scraping. Useful for dynamic content that loads after page load"),
+    .describe("Array of output formats to return. Options: markdown, html, rawHtml, screenshot, links, summary, changeTracking. Can also be objects for JSON extraction or screenshot configuration. Default: ['markdown']"),
+  onlyMainContent: z.boolean().optional().describe("Extract only main content, removing headers/footers/navigation elements. Recommended for cleaner content extraction. Default: true"),
+  includeTags: z.array(z.string()).optional().describe("HTML tags to include in extraction (e.g., ['article', 'main']). Cannot be used together with excludeTags"),
+  excludeTags: z.array(z.string()).optional().describe("HTML tags to exclude from extraction (e.g., ['nav', 'footer', 'aside']). Cannot be used together with includeTags"),
+  waitFor: z.number().optional().describe("Milliseconds to wait before scraping. Useful for dynamic content that loads after page load. Recommended range: 1000-5000ms. Higher values may timeout"),
   ...(SAFE_MODE ? {} : {
     actions: z
       .array(
         z.object({
-          type: z.enum(allowedActionTypes).describe("Action type to perform: wait, screenshot, scroll, scrape, click, write, press, executeJavascript, or generatePDF"),
-          selector: z.string().optional().describe("CSS selector for the element to interact with (required for click, write actions)"),
-          milliseconds: z.number().optional().describe("Duration in milliseconds (for wait action)"),
-          text: z.string().optional().describe("Text to type (for write action)"),
-          key: z.string().optional().describe("Key to press (for press action, e.g., 'Enter', 'Tab')"),
-          direction: z.enum(['up', 'down']).optional().describe("Scroll direction (for scroll action)"),
-          script: z.string().optional().describe("JavaScript code to execute (for executeJavascript action)"),
-          fullPage: z.boolean().optional().describe("Capture full page (for screenshot action)"),
+          type: z.enum(allowedActionTypes).describe("Action type to perform: wait, screenshot, scroll, scrape, click, write, press, executeJavascript, or generatePDF. Actions execute in the order specified"),
+          selector: z.string().optional().describe("CSS selector for the element to interact with (required for click, write actions). Example: '#submit-button', '.login-form input[name=\"email\"]'"),
+          milliseconds: z.number().optional().describe("Duration in milliseconds (for wait action). Recommended: 1000-3000ms"),
+          text: z.string().optional().describe("Text to type into the selected element (for write action). Example: 'username@example.com'"),
+          key: z.string().optional().describe("Key to press (for press action). Examples: 'Enter', 'Tab', 'Escape', 'ArrowDown'"),
+          direction: z.enum(['up', 'down']).optional().describe("Scroll direction (for scroll action). 'down' scrolls towards page bottom, 'up' scrolls towards top"),
+          script: z.string().optional().describe("JavaScript code to execute in the page context (for executeJavascript action). Has access to the DOM. Example: 'document.querySelector(\".modal\").remove()'"),
+          fullPage: z.boolean().optional().describe("Capture full page screenshot (for screenshot action). Default: false (viewport only)"),
         })
       )
       .optional()
-      .describe("Browser automation actions to perform before scraping. Execute actions sequentially to interact with the page"),
+      .describe("Browser automation actions to perform before scraping. Actions execute sequentially in array order. Use to interact with dynamic pages, click buttons, fill forms, etc."),
   }),
-  mobile: z.boolean().optional().describe("Emulate mobile device for scraping"),
-  skipTlsVerification: z.boolean().optional().describe("Skip TLS certificate verification (useful for self-signed certificates)"),
-  removeBase64Images: z.boolean().optional().describe("Remove base64-encoded images from output to reduce response size"),
+  mobile: z.boolean().optional().describe("Emulate mobile device user agent and viewport for scraping. Useful for mobile-specific content. Default: false"),
+  skipTlsVerification: z.boolean().optional().describe("Skip TLS certificate verification. Useful for self-signed certificates but reduces security. Use with caution. Default: false"),
+  removeBase64Images: z.boolean().optional().describe("Remove base64-encoded inline images from output to reduce response size and token usage. Default: false"),
   location: z
     .object({
-      country: z.string().optional().describe("Country code for geographic location (e.g., 'US', 'GB')"),
-      languages: z.array(z.string()).optional().describe("Language codes for content preferences (e.g., ['en', 'es'])"),
+      country: z.string().optional().describe("Country code for geographic location. ISO 3166-1 alpha-2 format. Examples: 'US', 'GB', 'DE', 'JP', 'AU'"),
+      languages: z.array(z.string()).optional().describe("Language codes for content preferences. ISO 639-1 format. Examples: ['en'], ['en', 'es'], ['de', 'fr']"),
     })
     .optional()
-    .describe("Geographic location settings for scraping. Affects content localization"),
-  storeInCache: z.boolean().optional().describe("Whether to store result in Firecrawl cache for future fast retrieval"),
-  maxAge: z.number().optional().describe("Maximum cache age in milliseconds. Use cached results if available and younger than this value. Enables fast scraping (up to 500% faster). Example: 172800000 for 48 hours"),
+    .describe("Geographic location and language settings for scraping. Affects content localization and regional variants of websites"),
+  storeInCache: z.boolean().optional().describe("Whether to store scraped result in Firecrawl's cache for future fast retrieval. Enables using maxAge parameter on subsequent scrapes. Default: true"),
+  maxAge: z.number().optional().describe("Maximum cache age in milliseconds. Use cached results if available and younger than this value. Enables fast scraping (up to 500% faster). Set to 0 to force fresh scrape. Example: 172800000 for 48 hours. Requires storeInCache enabled"),
 });
 
 server.addTool({
@@ -298,12 +298,12 @@ Map a website to discover all indexed URLs on the site.
 **Returns:** Array of URLs found on the site.
 `,
   parameters: z.object({
-    url: z.string().url().describe("The website URL to map and discover all pages"),
-    search: z.string().optional().describe("Search term to filter discovered URLs"),
-    sitemap: z.enum(['include', 'skip', 'only']).optional().describe("How to handle sitemaps: 'include' (use if available), 'skip' (ignore), 'only' (only use sitemap)"),
-    includeSubdomains: z.boolean().optional().describe("Include URLs from subdomains in results"),
-    limit: z.number().optional().describe("Maximum number of URLs to return"),
-    ignoreQueryParameters: z.boolean().optional().describe("Treat URLs with different query parameters as the same page"),
+    url: z.string().url().describe("The website URL to map and discover all pages. Must be a valid HTTP/HTTPS URL. Example: 'https://example.com'"),
+    search: z.string().optional().describe("Search term to filter discovered URLs. Only URLs containing this string will be returned. Example: 'blog' to find all blog pages"),
+    sitemap: z.enum(['include', 'skip', 'only']).optional().describe("How to handle sitemaps: 'include' (use sitemap if available, fall back to crawling), 'skip' (ignore sitemap entirely), 'only' (only return URLs from sitemap). Default: 'include'"),
+    includeSubdomains: z.boolean().optional().describe("Include URLs from subdomains in results. Example: if true and URL is 'example.com', will include 'blog.example.com', 'shop.example.com'. Default: false"),
+    limit: z.number().optional().describe("Maximum number of URLs to return. Recommended: 100-1000 for performance. Higher values may slow response. Default: no limit"),
+    ignoreQueryParameters: z.boolean().optional().describe("Treat URLs with different query parameters as the same page. Example: '/page?id=1' and '/page?id=2' become '/page'. Useful for deduplication. Default: false"),
   }),
   execute: async (
     args: unknown,
@@ -380,16 +380,16 @@ The query also supports search operators, that you can use if needed to refine t
 **Returns:** Array of search results (with optional scraped content).
 `,
   parameters: z.object({
-    query: z.string().min(1).describe("Search query. Supports operators like site:, inurl:, intitle:, - (exclude), quotes for exact match"),
-    limit: z.number().optional().describe("Maximum number of search results to return"),
-    tbs: z.string().optional().describe("Time-based search parameter (e.g., 'qdr:d' for past day, 'qdr:w' for past week, 'qdr:m' for past month, 'qdr:y' for past year)"),
-    filter: z.string().optional().describe("Additional filter for search results"),
-    location: z.string().optional().describe("Geographic location for search context (e.g., 'United States', 'London')"),
+    query: z.string().min(1).describe("Search query (minimum 1 character). Supports operators: site: (specific site), inurl: (URL contains), intitle: (title contains), - (exclude term), \"quotes\" (exact phrase). Example: 'AI site:arxiv.org -crypto \"machine learning\"'"),
+    limit: z.number().optional().describe("Maximum number of search results to return. Recommended: 5-20 for speed, up to 100 for comprehensive results. Default: 10"),
+    tbs: z.string().optional().describe("Time-based search parameter. Options: 'qdr:h' (past hour), 'qdr:d' (past day), 'qdr:w' (past week), 'qdr:m' (past month), 'qdr:y' (past year). Useful for finding recent content"),
+    filter: z.string().optional().describe("Additional search filter string. Format depends on search provider. Used for advanced filtering beyond standard operators"),
+    location: z.string().optional().describe("Geographic location for search context. Affects ranking and regional results. Examples: 'United States', 'London, UK', 'Tokyo, Japan'. Default: no location bias"),
     sources: z
-      .array(z.object({ type: z.enum(['web', 'images', 'news']).describe("Source type: 'web' for websites, 'images' for image search, 'news' for news articles") }))
+      .array(z.object({ type: z.enum(['web', 'images', 'news']).describe("Source type: 'web' for website search, 'images' for image search, 'news' for news articles") }))
       .optional()
-      .describe("Array of source types to search. Each object has 'type' field: 'web', 'images', or 'news'"),
-    scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional().describe("Optional parameters to scrape content from search results. Uses same schema as firecrawl_scrape"),
+      .describe("Array of source types to search. Each object requires 'type' field. Examples: [{type:'web'}], [{type:'web'},{type:'news'}]. Default: [{type:'web'}]"),
+    scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional().describe("Optional parameters to scrape full content from search results. When provided, each result will include scraped content. Uses same parameters as firecrawl_scrape (except url). Note: Increases response time and token usage. Recommended limit: 5 or lower when scraping"),
   }),
   execute: async (
     args: unknown,
@@ -435,33 +435,33 @@ server.addTool({
  ${SAFE_MODE ? '**Safe Mode:** Read-only crawling. Webhooks and interactive actions are disabled for security.' : ''}
  `,
   parameters: z.object({
-    url: z.string().describe("Starting URL for the crawl. Can use wildcards (e.g., '/blog/*' to crawl all blog paths)"),
-    prompt: z.string().optional().describe("Custom prompt to guide what content to extract during crawl"),
-    excludePaths: z.array(z.string()).optional().describe("Array of URL patterns to exclude from crawling (e.g., ['/admin/*', '/login'])"),
-    includePaths: z.array(z.string()).optional().describe("Array of URL patterns to include in crawling (e.g., ['/blog/*', '/docs/*'])"),
-    maxDiscoveryDepth: z.number().optional().describe("Maximum depth to discover new links (affects how deep to follow links from starting URL)"),
-    sitemap: z.enum(['skip', 'include', 'only']).optional().describe("How to handle sitemaps: 'skip' (ignore), 'include' (use if available), 'only' (only use sitemap)"),
-    limit: z.number().optional().describe("Maximum number of pages to crawl. Be conservative to avoid token limits and long wait times"),
-    allowExternalLinks: z.boolean().optional().describe("Allow crawling links to external domains outside the starting domain"),
-    allowSubdomains: z.boolean().optional().describe("Allow crawling subdomains of the starting domain (e.g., blog.example.com when starting at example.com)"),
-    crawlEntireDomain: z.boolean().optional().describe("Crawl all pages on the domain, not just paths under starting URL"),
-    delay: z.number().optional().describe("Milliseconds to wait between page crawls to avoid overwhelming the target server"),
-    maxConcurrency: z.number().optional().describe("Maximum number of concurrent page crawls to run in parallel"),
+    url: z.string().describe("Starting URL for the crawl. Must be valid HTTP/HTTPS URL. Can use wildcards (e.g., 'https://example.com/blog/*' to crawl all blog paths). Wildcards match paths, not domains"),
+    prompt: z.string().optional().describe("Custom prompt to guide LLM on what content to extract during crawl. Example: 'Extract product names and prices from each page'"),
+    excludePaths: z.array(z.string()).optional().describe("Array of URL path patterns to exclude from crawling. Supports wildcards. Examples: ['/admin/*', '/login', '*/private/*']. Default: none"),
+    includePaths: z.array(z.string()).optional().describe("Array of URL path patterns to include in crawling. Only matching paths will be crawled. Supports wildcards. Examples: ['/blog/*', '/docs/*']. Default: all paths"),
+    maxDiscoveryDepth: z.number().optional().describe("Maximum depth to discover new links from starting URL. 0 = only start URL, 1 = start + direct links, 2 = start + links from linked pages, etc. Recommended: 2-5. Higher values increase crawl scope significantly. Default: 10"),
+    sitemap: z.enum(['skip', 'include', 'only']).optional().describe("How to handle sitemaps: 'skip' (ignore sitemap), 'include' (use sitemap if available, supplement with crawling), 'only' (only crawl URLs from sitemap). Default: 'include'"),
+    limit: z.number().optional().describe("Maximum number of pages to crawl. CRITICAL: Be conservative to avoid token limits and long waits. Recommended: 5-20 for testing, 20-100 for production. Crawling 100+ pages may take several minutes and produce large responses. Default: 100"),
+    allowExternalLinks: z.boolean().optional().describe("Allow crawling links to external domains outside the starting domain. Example: if starting at example.com, also crawl partner.com. Increases scope significantly. Default: false"),
+    allowSubdomains: z.boolean().optional().describe("Allow crawling subdomains of the starting domain. Example: if starting at example.com, also crawl blog.example.com, shop.example.com. Default: false"),
+    crawlEntireDomain: z.boolean().optional().describe("Crawl all pages on the domain, ignoring the path in the starting URL. Example: starting at example.com/blog will crawl example.com/about, example.com/contact, etc. Default: false"),
+    delay: z.number().optional().describe("Milliseconds to wait between page crawls. Prevents overwhelming target server and avoids rate limiting. Recommended: 500-2000ms for respectful crawling, 0-200ms for fast crawling (risk of blocking). Default: 0"),
+    maxConcurrency: z.number().optional().describe("Maximum number of pages to crawl simultaneously in parallel. Higher values = faster but more server load. Recommended: 1-5 for respectful crawling, 5-20 for fast crawling. Default: 5"),
     ...(SAFE_MODE ? {} : {
       webhook: z
         .union([
-          z.string().describe("Webhook URL to receive crawl progress updates"),
+          z.string().describe("Webhook URL to receive crawl progress updates and completion notification. Must be publicly accessible HTTPS endpoint"),
           z.object({
-            url: z.string().describe("Webhook URL to receive crawl progress updates"),
-            headers: z.record(z.string(), z.string()).optional().describe("Custom HTTP headers to include in webhook requests"),
+            url: z.string().describe("Webhook URL to receive crawl progress updates and completion notification. Must be publicly accessible HTTPS endpoint"),
+            headers: z.record(z.string(), z.string()).optional().describe("Custom HTTP headers to include in webhook POST requests. Example: {\"Authorization\": \"Bearer token123\", \"X-Custom-Header\": \"value\"}"),
           }),
         ])
         .optional()
-        .describe("Webhook URL or config object to receive crawl progress updates. Only available when SAFE_MODE is false"),
+        .describe("Webhook configuration to receive real-time crawl progress updates. Receives POST requests with crawl status. Only available when SAFE_MODE is false. Useful for long crawls to avoid polling"),
     }),
-    deduplicateSimilarURLs: z.boolean().optional().describe("Remove similar/duplicate URLs from crawl (e.g., URLs that differ only in tracking parameters)"),
-    ignoreQueryParameters: z.boolean().optional().describe("Treat URLs with different query parameters as the same page"),
-    scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional().describe("Scraping parameters to apply to each crawled page. Uses same schema as firecrawl_scrape"),
+    deduplicateSimilarURLs: z.boolean().optional().describe("Remove similar/duplicate URLs from crawl results. Example: '/page?utm_source=twitter' and '/page?utm_source=facebook' treated as duplicates. Useful for removing tracking parameter variations. Default: true"),
+    ignoreQueryParameters: z.boolean().optional().describe("Treat URLs with different query parameters as the same page. Example: '/page?id=1' and '/page?id=2' both become '/page'. Stronger deduplication than deduplicateSimilarURLs. Default: false"),
+    scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional().describe("Scraping parameters to apply to each crawled page. Supports all firecrawl_scrape options (formats, onlyMainContent, waitFor, actions, etc.) except url. Applied uniformly to all pages in crawl"),
   }),
   execute: async (args, { session, log }) => {
     const { url, ...options } = args as Record<string, unknown>;
@@ -492,7 +492,7 @@ Check the status of a crawl job.
 \`\`\`
 **Returns:** Status and progress of the crawl job, including results if available.
 `,
-  parameters: z.object({ id: z.string().describe("The crawl job ID returned from firecrawl_crawl to check status and retrieve results") }),
+  parameters: z.object({ id: z.string().describe("The crawl job ID (UUID format) returned from firecrawl_crawl. Use this to check crawl progress and retrieve completed results. Example: '550e8400-e29b-41d4-a716-446655440000'") }),
   execute: async (
     args: unknown,
     { session }: { session?: SessionData }
@@ -543,12 +543,12 @@ Extract structured information from web pages using LLM capabilities. Supports b
 **Returns:** Extracted structured data as defined by your schema.
 `,
   parameters: z.object({
-    urls: z.array(z.string()).describe("Array of URLs to extract structured data from"),
-    prompt: z.string().optional().describe("Custom prompt describing what information to extract from the pages"),
-    schema: z.record(z.string(), z.any()).optional().describe("JSON schema defining the structure of data to extract (e.g., properties, types, required fields)"),
-    allowExternalLinks: z.boolean().optional().describe("Allow extraction from external links found on the specified pages"),
-    enableWebSearch: z.boolean().optional().describe("Enable web search to gather additional context for extraction"),
-    includeSubdomains: z.boolean().optional().describe("Include pages from subdomains in extraction"),
+    urls: z.array(z.string()).describe("Array of URLs to extract structured data from. Must be valid HTTP/HTTPS URLs. Maximum recommended: 10-20 URLs per request for performance. Example: ['https://example.com/product1', 'https://example.com/product2']"),
+    prompt: z.string().optional().describe("Custom prompt describing what information to extract from the pages. Be specific about desired fields and format. Example: 'Extract the product name, price in USD, description, and availability status from each page'"),
+    schema: z.record(z.string(), z.any()).optional().describe("JSON schema defining the structure of data to extract. Specify properties, types, and required fields. Example: {type: 'object', properties: {name: {type: 'string'}, price: {type: 'number'}}, required: ['name', 'price']}. Improves extraction accuracy and consistency"),
+    allowExternalLinks: z.boolean().optional().describe("Allow extraction from external links found on the specified pages. If true, will follow and extract from links to other domains. Increases scope and processing time. Default: false"),
+    enableWebSearch: z.boolean().optional().describe("Enable web search to gather additional context for extraction. LLM will perform web searches to supplement page content. Useful when pages reference external information. Increases processing time and cost. Default: false"),
+    includeSubdomains: z.boolean().optional().describe("Include pages from subdomains in extraction. Example: if URL is 'example.com/page', also extract from 'blog.example.com/page'. Default: false"),
   }),
   execute: async (
     args: unknown,
