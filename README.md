@@ -13,7 +13,7 @@
 A Model Context Protocol (MCP) server implementation that integrates with [Firecrawl](https://github.com/firecrawl/firecrawl) for web scraping capabilities.
 
 **✨ Key Fork Highlights:**
-- 🔧 **Enhanced Parameter Descriptions**: 50+ parameters with LLM-friendly descriptions across all 6 tools ([details](#parameter-descriptions-enhancement))
+- 🔧 **Enhanced Parameter Descriptions**: 72+ parameters with LLM-friendly descriptions across all 6 tools ([details](#parameter-descriptions-enhancement))
 - 🐳 **Docker Ready**: Production MCP-compliant containerization ([validation](./validation-reports/docker-stdio-compliance.md))
 - 📦 **Latest Dependencies**: Firecrawl-FastMCP 1.0.3 + @mendable/firecrawl-js 4.3.6
 - 🔍 **Developer Experience**: Self-documenting schemas with IDE tooltips and AI agent optimization
@@ -38,7 +38,7 @@ See [VALIDATION.md](./VALIDATION.md) for detailed evidence and verification repo
 One of the key improvements in this fork is the addition of comprehensive parameter descriptions to all MCP tools. This enhancement significantly improves the developer experience and AI agent understanding by providing:
 
 **Implementation Details:**
-- Added `.describe()` annotations to 50+ parameters across all 6 MCP tools
+- Added `.describe()` annotations to 72+ parameters across all 6 MCP tools
 - Covers complex nested types including:
   - Union types (formats, webhook configurations)
   - Nested objects (location, viewport, actions)
@@ -64,7 +64,7 @@ maxAge: z.number().optional().describe(
 )
 ```
 
-📖 **Full Technical Documentation**: See [PARAMETER_DESCRIPTIONS.md](./PARAMETER_DESCRIPTIONS.md) for complete implementation details, all 50+ parameter descriptions, and technical patterns used.
+📖 **Full Technical Documentation**: See [PARAMETER_DESCRIPTIONS.md](./PARAMETER_DESCRIPTIONS.md) for complete implementation details, all 72+ parameter descriptions, and technical patterns used.
 
 For the original implementation, see the [upstream repository](https://github.com/firecrawl/firecrawl-mcp-server).
 
@@ -91,7 +91,7 @@ This server uses the Firecrawl-optimized Model Context Protocol SDK via the `fir
 - `@types/node`: ^24.3.1
 - `dotenv`: ^17.2.2
 - `typescript`: ^5.9.2
-- `zod`: ^4.1.5
+- `zod`: ^3.25.76
 
 For complete MCP protocol documentation, see [Model Context Protocol](https://modelcontextprotocol.io/).
 
