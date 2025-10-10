@@ -1,0 +1,33 @@
+services:
+  firecrawl-mcp-http:
+    image: firecrawl-mcp-server-firecrawl-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: firecrawl-mcp-http
+
+    # HTTP transport environment variables
+    environment:
+      - HTTP_STREAMABLE_SERVER=true
+      - PORT=10777
+      - HOST=0.0.0.0
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - NODE_ENV=production
+
+    # Expose HTTP port for MCP access
+    ports:
+      - "10777:10777"
+
+    # Bridge network mode for proper port visibility
+    network_mode: "bridge"
+
+    # Auto-restart on failure
+    restart: unless-stopped
+
+    # Health check on FastMCP health endpoint
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10777/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
