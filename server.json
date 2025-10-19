@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.firecrawl/firecrawl-mcp-server",
   "title": "Firecrawl MCP Server",
-  "description": "MCP server for Firecrawl web scraping and search integration. Supports both cloud and self-hosted instances. Features include web scraping, search, batch processing, structured data extraction, and LLM-powered content analysis.",
+  "description": "MCP server for Firecrawl web scraping, structured data extraction and web search integration.",
   "version": "3.4.0",
   "packages": [
     {
