@@ -15,8 +15,8 @@ importers:
         specifier: ^17.2.2
         version: 17.2.2
       firecrawl-fastmcp:
-        specifier: ^1.0.3
-        version: 1.0.3
+        specifier: ^1.0.4
+        version: 1.0.4
       typescript:
         specifier: ^5.9.2
         version: 5.9.2
@@ -37,8 +37,8 @@ packages:
     resolution: {integrity: sha512-gha1nICp+yJJt/fjLj1EsptTvlYdjkJRa66clEV+R2F5hJlDOWOjdGAPUU7IO/RXJ+coR1JmxUJ3P6R/ziPyLg==}
     engines: {node: '>=22.0.0'}
 
-  '@modelcontextprotocol/sdk@1.18.2':
-    resolution: {integrity: sha512-beedclIvFcCnPrYgHsylqiYJVJ/CI47Vyc4tY8no1/Li/O8U4BTlJfy6ZwxkYwx+Mx10nrgwSVrA7VBbhh4slg==}
+  '@modelcontextprotocol/sdk@1.18.0':
+    resolution: {integrity: sha512-JvKyB6YwS3quM+88JPR0axeRgvdDu3Pv6mdZUy+w4qVkCzGgumb9bXG/TmtDRQv+671yaofVfXSQmFLlWU5qPQ==}
     engines: {node: '>=18'}
 
   '@sec-ant/readable-stream@0.4.1':
@@ -235,8 +235,8 @@ packages:
     resolution: {integrity: sha512-/t88Ty3d5JWQbWYgaOGCCYfXRwV1+be02WqYYlL6h0lEiUAMPM8o8qKGO01YIkOHzka2up08wvgYD0mDiI+q3Q==}
     engines: {node: '>= 0.8'}
 
-  firecrawl-fastmcp@1.0.3:
-    resolution: {integrity: sha512-S1BvlzXRp71rR+u90bIVOMm3kdTjkrzAgPqRkOPJKUq8hqgP/uECEOsPiIh/GliXXPZ3sNInDCRV7JlIVLovEg==}
+  firecrawl-fastmcp@1.0.4:
+    resolution: {integrity: sha512-7nQWkRg3npwk+k6vSE8dKkI9WhN1SEMCS7KPSMq8AIz8bqovb6EjBQM53BogmjGZSRCFY6naGPef/KvygA9lMA==}
     hasBin: true
 
   follow-redirects@1.15.11:
@@ -654,7 +654,7 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  '@modelcontextprotocol/sdk@1.18.2':
+  '@modelcontextprotocol/sdk@1.18.0':
     dependencies:
       ajv: 6.12.6
       content-type: 1.0.5
@@ -904,9 +904,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  firecrawl-fastmcp@1.0.3:
+  firecrawl-fastmcp@1.0.4:
     dependencies:
-      '@modelcontextprotocol/sdk': 1.18.2
+      '@modelcontextprotocol/sdk': 1.18.0
       '@standard-schema/spec': 1.0.0
       execa: 9.6.0
       file-type: 21.0.0
