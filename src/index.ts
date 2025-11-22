@@ -268,6 +268,7 @@ This is the most powerful, fastest and most reliable scraper tool, if available 
 **Best for:** Single page content extraction, when you know exactly which page contains the information.
 **Not recommended for:** Multiple pages (use batch_scrape), unknown page (use search), structured data (use extract).
 **Common mistakes:** Using scrape for a list of URLs (use batch_scrape instead). If batch scrape doesnt work, just use scrape and call it multiple times.
+**Other Features:** Use 'branding' format to extract brand identity (colors, fonts, typography, spacing, UI components) for design analysis or style replication.
 **Prompt Example:** "Get the content of the page at https://example.com."
 **Usage Example:**
 \`\`\`json
