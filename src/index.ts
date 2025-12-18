@@ -256,6 +256,7 @@ const scrapeParamsSchema = z.object({
     })
     .optional(),
   storeInCache: z.boolean().optional(),
+  zeroDataRetention: z.boolean().optional(),
   maxAge: z.number().optional(),
 });
 
@@ -429,6 +430,7 @@ The query also supports search operators, that you can use if needed to refine t
       .array(z.object({ type: z.enum(['web', 'images', 'news']) }))
       .optional(),
     scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional(),
+    enterprise: z.array(z.enum(['default', 'anon', 'zdr'])).optional(),
   }),
   execute: async (
     args: unknown,
@@ -616,6 +618,125 @@ Extract structured information from web pages using LLM capabilities. Supports b
     return asText(res);
   },
 });
+
+server.addTool({
+  name: 'firecrawl_agent',
+  description: `
+Autonomous web data gathering agent. Describe what data you want, and the agent searches, navigates, and extracts it from anywhere on the web.
+
+**Best for:** Complex data gathering tasks where you don't know the exact URLs; research tasks requiring multiple sources; finding data in hard-to-reach places.
+**Not recommended for:** Simple single-page scraping (use scrape); when you already know the exact URL (use scrape or extract).
+**Key advantages over extract:**
+- No URLs required - just describe what you need
+- Autonomously searches and navigates the web
+- Faster and more cost-effective for complex tasks
+- Higher reliability for varied queries
+
+**Arguments:**
+- prompt: Natural language description of the data you want (required, max 10,000 characters)
+- urls: Optional array of URLs to focus the agent on specific pages
+- schema: Optional JSON schema for structured output
+
+**Prompt Example:** "Find the founders of Firecrawl and their backgrounds"
+**Usage Example (no URLs):**
+\`\`\`json
+{
+  "name": "firecrawl_agent",
+  "arguments": {
+    "prompt": "Find the top 5 AI startups founded in 2024 and their funding amounts",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "startups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "funding": { "type": "string" },
+              "founded": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+\`\`\`
+**Usage Example (with URLs):**
+\`\`\`json
+{
+  "name": "firecrawl_agent",
+  "arguments": {
+    "urls": ["https://docs.firecrawl.dev", "https://firecrawl.dev/pricing"],
+    "prompt": "Compare the features and pricing information from these pages"
+  }
+}
+\`\`\`
+**Returns:** Extracted data matching your prompt/schema, plus credits used.
+`,
+  parameters: z.object({
+    prompt: z.string().min(1).max(10000),
+    urls: z.array(z.string().url()).optional(),
+    schema: z.record(z.string(), z.any()).optional(),
+  }),
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
+    const client = getClient(session);
+    const a = args as Record<string, unknown>;
+    log.info('Starting agent', {
+      prompt: (a.prompt as string).substring(0, 100),
+      urlCount: Array.isArray(a.urls) ? a.urls.length : 0,
+    });
+    const agentBody = removeEmptyTopLevel({
+      prompt: a.prompt as string,
+      urls: a.urls as string[] | undefined,
+      schema: (a.schema as Record<string, unknown>) || undefined,
+    });
+    const res = await (client as any).agent({
+      ...agentBody,
+      origin: ORIGIN,
+    });
+    return asText(res);
+  },
+});
+
+server.addTool({
+  name: 'firecrawl_agent_status',
+  description: `
+Check the status of an agent job.
+
+**Usage Example:**
+\`\`\`json
+{
+  "name": "firecrawl_agent_status",
+  "arguments": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+\`\`\`
+**Possible statuses:**
+- processing: Agent is still working
+- completed: Extraction finished successfully
+- failed: An error occurred
+
+**Returns:** Status, progress, and results (if completed) of the agent job.
+`,
+  parameters: z.object({ id: z.string() }),
+  execute: async (
+    args: unknown,
+    { session, log }: { session?: SessionData; log: Logger }
+  ): Promise<string> => {
+    const client = getClient(session);
+    const { id } = args as { id: string };
+    log.info('Checking agent status', { id });
+    const res = await (client as any).getAgentStatus(id);
+    return asText(res);
+  },
+});
+
 const PORT = Number(process.env.PORT || 3000);
 const HOST =
   process.env.CLOUD_SERVICE === 'true'
