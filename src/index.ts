@@ -418,6 +418,7 @@ The query also supports search operators, that you can use if needed to refine t
 }
 \`\`\`
 **Returns:** Array of search results (with optional scraped content).
+**Enterprise:** Use \`enterprise: ["zdr"]\` for zero data retention (no logging, 5x credits) or \`["anon"]\` for anonymous mode (no logging).
 `,
   parameters: z.object({
     query: z.string().min(1),
@@ -429,6 +430,7 @@ The query also supports search operators, that you can use if needed to refine t
       .array(z.object({ type: z.enum(['web', 'images', 'news']) }))
       .optional(),
     scrapeOptions: scrapeParamsSchema.omit({ url: true }).partial().optional(),
+    enterprise: z.array(z.enum(['default', 'anon', 'zdr'])).optional(),
   }),
   execute: async (
     args: unknown,
