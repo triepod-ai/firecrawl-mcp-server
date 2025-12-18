@@ -256,6 +256,7 @@ const scrapeParamsSchema = z.object({
     })
     .optional(),
   storeInCache: z.boolean().optional(),
+  zeroDataRetention: z.boolean().optional(),
   maxAge: z.number().optional(),
 });
 
@@ -418,7 +419,6 @@ The query also supports search operators, that you can use if needed to refine t
 }
 \`\`\`
 **Returns:** Array of search results (with optional scraped content).
-**Enterprise:** Use \`enterprise: ["zdr"]\` for zero data retention (no logging, 5x credits) or \`["anon"]\` for anonymous mode (no logging).
 `,
   parameters: z.object({
     query: z.string().min(1),
