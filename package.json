@@ -23,7 +23,7 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write .",
     "prepare": "npm run build",
-    "publish": "npm run build && npm publish",
+    "publish-prod": "npm run build && npm publish",
     "publish-beta": "npm run build && npm publish --tag beta"
   },
   "license": "MIT",
